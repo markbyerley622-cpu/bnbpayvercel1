@@ -1,0 +1,1155 @@
+/**
+ * BNBPay API Client Library
+ *
+ * Read-only and relay endpoints for BNBPay payments, sessions, and networks.
+ * All GET routes are gas-free; relay routes submit on-chain transactions.
+ *
+ * Base URL: https://api.bnbpay.org
+ * API Version: 0.1.0
+ */
+
+// Use /api proxy path in both dev and production to avoid CORS issues
+// Vite dev server proxies /api/* to https://api.bnbpay.org/*
+// Vercel rewrites /api/* to https://api.bnbpay.org/* in production
+const API_BASE_URL = '/api';
+
+// BigInt JSON serialization helper - converts BigInt to string
+// This prevents "Do not know how to serialize a BigInt" errors
+export function serializeBigInt(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeBigInt);
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = serializeBigInt(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// Safe JSON.stringify that handles BigInt
+export function safeStringify(obj: unknown, space?: number): string {
+  return JSON.stringify(serializeBigInt(obj), null, space);
+}
+
+// ============================================================================
+// Network Types
+// ============================================================================
+
+export type NetworkKey = 'bnb' | 'bnbTestnet';
+
+export interface NetworkConfig {
+  key: NetworkKey;
+  chainId: number;
+  name: string;
+  registry: string;
+  router: string;
+  sessionStore: string;
+  permit2: string;
+}
+
+export interface NetworksResponse {
+  networks: NetworkConfig[];
+}
+
+// ============================================================================
+// Health Types
+// ============================================================================
+
+export interface HealthResponse {
+  status: 'ok' | 'error';
+}
+
+// ============================================================================
+// Payment Types
+// ============================================================================
+
+export interface Payment {
+  paymentId: string;
+  network: NetworkKey;
+  resourceId: string;
+  schemeId: string;
+  invoiceType: string;
+  payer: string;
+  merchant: string;
+  token: string;
+  amount: string;
+  feeAmount: string;
+  reference: string;
+  referenceHash: string;
+  referenceBase: string;
+  sessionId: string;
+  timestamp: string; // ISO date string
+  blockNumber: number;
+  txHash: string;
+  createdAt: string; // ISO date string
+}
+
+export interface PaymentsResponse {
+  data: Payment[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface PaymentStatusResponse {
+  status: 'pending' | 'confirmed' | 'failed';
+  network: NetworkKey;
+  payment?: Payment;
+}
+
+export interface CanPayParams {
+  network: NetworkKey;
+  from: string;
+  to: string;
+  token?: string;
+  amount: string;
+}
+
+export interface CanPayResponse {
+  canPay: boolean;
+  reason?: string;
+  balance?: string;
+  allowance?: string;
+  requiredAmount?: string;
+}
+
+// ============================================================================
+// Build Intent Types
+// ============================================================================
+
+export type BuildIntentMode = 'minimal' | 'advanced';
+export type PaymentScheme = 'aa_push' | 'push_signed' | 'permit2' | 'eip2612' | 'eip3009' | 'session';
+
+export interface BuildIntentRequest {
+  mode: BuildIntentMode;
+  network: NetworkKey;
+  merchant: string;
+  token: string;
+  amount: string;
+  decimals?: number;
+  scheme?: PaymentScheme;
+  sessionId?: string;
+  payer?: string;
+  deadlineSeconds?: number;
+  invoiceId?: string; // Canonical invoice reference (preferred for invoices)
+  referenceId?: string; // Custom reference (use invoiceId for invoices)
+  baseReference?: string; // Base reference without tags
+  salt?: string;
+}
+
+export interface BuildIntentResponse {
+  input: {
+    chainId: number;
+    merchant: string;
+    token: string;
+    amount: string;
+    amountWei: string;
+    decimals: number;
+    scheme: string;
+    deadline: number;
+    sessionId: string | null;
+    payer: string;
+    referenceId: string;
+    baseReference: string;
+    salt: string;
+  };
+  derived: {
+    resourceId: string;
+    referenceDataTagged: string;
+    referenceHash: string;
+    paymentId: string;
+    intent: {
+      paymentId: string;
+      merchant: string;
+      token: string;
+      amount: string;
+      deadline: number;
+      payer: string;
+      resourceId: string;
+      referenceHash: string;
+    };
+    intentHash: string;
+  };
+  signing: {
+    routerDomain: {
+      name: string;
+      version: string;
+      chainId: number;
+      verifyingContract: string;
+    };
+  };
+  hints: {
+    deadlineSecondsDefaulted: boolean;
+    saltAutoGenerated: boolean;
+    referenceAutoGenerated: boolean;
+    canonicalReference: string;
+  };
+  // Legacy flat fields for backwards compatibility (computed from nested structure)
+  paymentId?: string;
+  intent?: RelayIntent;
+  witness?: RelayWitness;
+  deadline?: number;
+  resourceId?: string;
+  unsignedTx?: {
+    to: string;
+    data: string;
+    value: string;
+    chainId: number;
+  };
+  estimatedGas?: string;
+}
+
+// ============================================================================
+// Wallet Types
+// ============================================================================
+
+export type WalletRole = 'payer' | 'merchant' | 'all';
+
+export interface WalletPaymentsParams {
+  page?: number;
+  pageSize?: number;
+  role?: WalletRole;
+  network?: NetworkKey;
+}
+
+export interface WalletPaymentsResponse {
+  data: Payment[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+// ============================================================================
+// Session Types
+// ============================================================================
+
+export type SessionRole = 'payer' | 'agent';
+
+export interface Session {
+  sessionId: string;
+  network: NetworkKey;
+  payer: string;
+  agent: string;
+  token: string;
+  budgetAmount: string;
+  spentAmount: string;
+  remainingAmount: string;
+  spendNonce: string;
+  expiresAt: string; // ISO date string
+  createdAt: string; // ISO date string
+  revokedAt?: string; // ISO date string
+  isActive: boolean;
+}
+
+export interface SessionsParams {
+  wallet: string;
+  role?: SessionRole;
+  network?: NetworkKey;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface SessionsResponse {
+  data: Session[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface AgentSessionsParams {
+  network: NetworkKey;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface SessionSpend {
+  spendId: string;
+  sessionId: string;
+  paymentId: string;
+  amount: string;
+  spendNonce: string;
+  timestamp: string;
+  txHash: string;
+}
+
+export interface SessionSpendsResponse {
+  data: SessionSpend[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface SessionPaymentsResponse {
+  data: Payment[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
+// ============================================================================
+// Relay Types
+// ============================================================================
+
+export interface RelayIntent {
+  paymentId: string;
+  merchant: string;
+  token: string;
+  amount: string;
+  deadline: number;
+  resourceId: string;
+  // NOTE: payer is optional - if omitted, server defaults to ZeroAddress
+  // For gasless payments, MUST include payer to match witness.payer
+  payer?: string;
+  // NOTE: referenceHash is computed by server from reference string
+  // referenceHash?: string;
+}
+
+export interface RelayWitness {
+  schemeId: string;
+  intentHash: string;
+  payer: string;
+  salt: string;
+}
+
+export interface RelaySession {
+  sessionId: string;
+  agent: string;
+}
+
+export interface RelaySessionAuth {
+  sessionId: string;
+  intentHash: string;
+  schemeId: string;
+  spendNonce: string;
+  expiresAt: number;
+}
+
+export interface RelayPermit2 {
+  permit: {
+    permitted: {
+      token: string;
+      amount: string;
+    };
+    nonce: string;
+    deadline: number;
+  };
+  transferDetails: {
+    to: string;
+    requestedAmount: string;
+  };
+  signature: string;
+}
+
+export interface RelayEip2612 {
+  deadline: number;
+  v: number;
+  r: string;
+  s: string;
+}
+
+export interface RelayEip3009 {
+  validAfter: number;
+  validBefore: number;
+  authNonce: string;
+  v: number;
+  r: string;
+  s: string;
+}
+
+export interface RelayPaymentRequest {
+  network: NetworkKey;
+  scheme: PaymentScheme;
+  intent: RelayIntent;
+  witness: RelayWitness;
+  witnessSignature: string;
+  signedTx?: string; // Required for push_signed
+  reference?: string;
+  session?: RelaySession;
+  sessionAuth?: RelaySessionAuth;
+  sessionAuthSignature?: string;
+  permit2?: RelayPermit2;
+  eip2612?: RelayEip2612;
+  eip3009?: RelayEip3009;
+}
+
+export interface RelayPaymentResponse {
+  txHash: string;
+  network: NetworkKey;
+  paymentId: string;
+  referenceId?: string;
+}
+
+export interface Permit2BundleRequest {
+  network: NetworkKey;
+  intent: RelayIntent;
+  witness: RelayWitness;
+  witnessSignature: string;
+  reference?: string;
+  session?: RelaySession;
+  sessionAuth?: RelaySessionAuth;
+  sessionAuthSignature?: string;
+  permit2: RelayPermit2;
+  approvalTx: string; // Signed raw transaction for approve(Permit2, MaxUint256)
+  targetBlock?: number;
+  maxBlockNumber?: number;
+  minTimestamp?: number;
+  maxTimestamp?: number;
+  topUpWei?: string; // Optional: relayer funds payer for gas
+  topUpTo?: string; // Optional: override payer address
+  revertingTxHashes?: string[]; // Optional: allow specific txs to revert
+}
+
+export interface Permit2BundleResponse {
+  bundleId: string;
+  method: string; // "eth_sendBundle" or "eth_sendPrivateBundle"
+  targetBlock: number;
+  network: NetworkKey;
+  paymentId: string;
+  referenceId?: string;
+}
+
+export interface RelaySessionRevokeRequest {
+  network: NetworkKey;
+  sessionId: string;
+  deadline: number;
+  signature: string;
+}
+
+export interface RelaySessionRevokeResponse {
+  txHash: string;
+  sessionId: string;
+  network: NetworkKey;
+}
+
+// ============================================================================
+// Pagination
+// ============================================================================
+
+export interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginationHeaders {
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+// ============================================================================
+// API Error
+// ============================================================================
+
+export interface ApiError {
+  message?: string;
+  error?: string;
+  code?: string;
+  details?: Record<string, unknown>;
+}
+
+class BNBPayApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public details?: ApiError
+  ) {
+    super(message);
+    this.name = 'BNBPayApiError';
+  }
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let errorDetails: ApiError | undefined;
+    let errorText: string | undefined;
+    try {
+      const text = await response.text();
+      errorText = text;
+      errorDetails = JSON.parse(text);
+    } catch {
+      // Response body is not JSON, use text
+    }
+
+    console.error('API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorText,
+      errorDetails,
+    });
+
+    throw new BNBPayApiError(
+      errorDetails?.message || errorDetails?.error || errorText || `HTTP ${response.status}: ${response.statusText}`,
+      response.status,
+      errorDetails
+    );
+  }
+  return response.json();
+}
+
+// ============================================================================
+// Health Endpoints
+// ============================================================================
+
+/**
+ * Health check
+ * GET /health
+ */
+export async function getHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${API_BASE_URL}/health`);
+  return handleResponse<HealthResponse>(response);
+}
+
+// ============================================================================
+// Payment Endpoints (Read-Only, Gas-Free)
+// ============================================================================
+
+export interface PaymentsParams {
+  page?: number;
+  pageSize?: number;
+  invoice_type?: string;
+  reference?: string;
+  reference_base?: string;
+  resource_id?: string;
+  session_id?: string;
+  network?: NetworkKey;
+}
+
+/**
+ * List payments (indexed)
+ * GET /payments
+ * Read-only, gas-free. Supports pagination and filters.
+ */
+export async function getPayments(params?: PaymentsParams): Promise<PaymentsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+  if (params?.invoice_type) searchParams.set('invoice_type', params.invoice_type);
+  if (params?.reference) searchParams.set('reference', params.reference);
+  if (params?.reference_base) searchParams.set('reference_base', params.reference_base);
+  if (params?.resource_id) searchParams.set('resource_id', params.resource_id);
+  if (params?.session_id) searchParams.set('session_id', params.session_id);
+  if (params?.network) searchParams.set('network', params.network);
+
+  const url = `${API_BASE_URL}/payments${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+  const response = await fetch(url);
+  return handleResponse<PaymentsResponse>(response);
+}
+
+/**
+ * Get payment by ID
+ * GET /payments/{paymentId}
+ */
+export async function getPayment(paymentId: string): Promise<Payment> {
+  const response = await fetch(`${API_BASE_URL}/payments/${paymentId}`);
+  return handleResponse<Payment>(response);
+}
+
+/**
+ * Get payment settlement status
+ * GET /payments/{paymentId}/status
+ */
+export async function getPaymentStatus(paymentId: string, network?: NetworkKey): Promise<PaymentStatusResponse> {
+  const searchParams = new URLSearchParams();
+  if (network) searchParams.set('network', network);
+
+  const url = `${API_BASE_URL}/payments/${paymentId}/status${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+  const response = await fetch(url);
+  return handleResponse<PaymentStatusResponse>(response);
+}
+
+/**
+ * Preflight whether payer can pay a merchant
+ * GET /can-pay
+ * Read-only, gas-free.
+ */
+export async function canPay(params: CanPayParams): Promise<CanPayResponse> {
+  const searchParams = new URLSearchParams({
+    network: params.network,
+    from: params.from,
+    to: params.to,
+    amount: params.amount,
+  });
+  if (params.token) searchParams.set('token', params.token);
+
+  const response = await fetch(`${API_BASE_URL}/can-pay?${searchParams.toString()}`);
+  return handleResponse<CanPayResponse>(response);
+}
+
+/**
+ * Build payment intent payload
+ * POST /payments/build-intent
+ * Gas-free; returns payloads for push/permit/session flows.
+ */
+export async function buildPaymentIntent(request: BuildIntentRequest): Promise<BuildIntentResponse> {
+  const response = await fetch(`${API_BASE_URL}/payments/build-intent`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<BuildIntentResponse>(response);
+}
+
+// ============================================================================
+// Wallet Endpoints (Read-Only, Gas-Free)
+// ============================================================================
+
+/**
+ * List payments by wallet address
+ * Uses GET /payments with payer or merchant filter
+ * Read-only, gas-free.
+ *
+ * @param address - Wallet address to filter by
+ * @param params.role - 'payer' (default), 'merchant', or 'all' (fetches both)
+ * @param params.network - Optional network filter ('bnb' | 'bnbTestnet')
+ */
+export async function getWalletPayments(
+  address: string,
+  params?: WalletPaymentsParams
+): Promise<WalletPaymentsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+  if (params?.network) searchParams.set('network', params.network);
+
+  // Filter by wallet address - check role to determine filter field
+  if (params?.role === 'merchant') {
+    searchParams.set('merchant', address);
+  } else if (params?.role === 'all') {
+    // For 'all', we use 'wallet' param which searches both payer and merchant
+    searchParams.set('wallet', address);
+  } else {
+    // Default to payer
+    searchParams.set('payer', address);
+  }
+
+  const url = `${API_BASE_URL}/payments${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+  const response = await fetch(url);
+  return handleResponse<WalletPaymentsResponse>(response);
+}
+
+// ============================================================================
+// Session Endpoints (Read-Only, Gas-Free)
+// ============================================================================
+
+/**
+ * List sessions for wallet
+ * GET /sessions
+ * Read-only, gas-free.
+ */
+export async function getSessions(params: SessionsParams): Promise<SessionsResponse> {
+  const searchParams = new URLSearchParams({
+    wallet: params.wallet,
+  });
+  if (params.role) searchParams.set('role', params.role);
+  if (params.network) searchParams.set('network', params.network);
+  if (params.page) searchParams.set('page', params.page.toString());
+  if (params.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+
+  const url = `${API_BASE_URL}/sessions?${searchParams.toString()}`;
+  const response = await fetch(url);
+  return handleResponse<SessionsResponse>(response);
+}
+
+/**
+ * List sessions for agent (includes spendNonce)
+ * GET /sessions/agent/{address}
+ */
+export async function getAgentSessions(
+  agentAddress: string,
+  params: AgentSessionsParams
+): Promise<SessionsResponse> {
+  const searchParams = new URLSearchParams({
+    network: params.network,
+  });
+  if (params.page) searchParams.set('page', params.page.toString());
+  if (params.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+
+  const url = `${API_BASE_URL}/sessions/agent/${agentAddress}?${searchParams.toString()}`;
+  const response = await fetch(url);
+  return handleResponse<SessionsResponse>(response);
+}
+
+/**
+ * Get session details
+ * GET /sessions/{sessionId}
+ */
+export async function getSession(sessionId: string): Promise<Session> {
+  const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
+  return handleResponse<Session>(response);
+}
+
+/**
+ * List spends for a session
+ * GET /sessions/{sessionId}/spends
+ */
+export async function getSessionSpends(
+  sessionId: string,
+  params?: PaginationParams
+): Promise<SessionSpendsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+
+  const url = `${API_BASE_URL}/sessions/${sessionId}/spends${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+  const response = await fetch(url);
+  return handleResponse<SessionSpendsResponse>(response);
+}
+
+/**
+ * List payments for a session
+ * GET /sessions/{sessionId}/payments
+ */
+export async function getSessionPayments(
+  sessionId: string,
+  params?: PaginationParams
+): Promise<SessionPaymentsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.pageSize) searchParams.set('pageSize', params.pageSize.toString());
+
+  const url = `${API_BASE_URL}/sessions/${sessionId}/payments${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+  const response = await fetch(url);
+  return handleResponse<SessionPaymentsResponse>(response);
+}
+
+// ============================================================================
+// Relay Endpoints (Submit On-Chain Transactions)
+// ============================================================================
+
+/**
+ * Relay a payment to chain
+ * POST /relay/payment
+ * On-chain; relayer sends transaction. Gas is paid by relayer for permit2/eip2612/eip3009/session flows.
+ * For push_signed, caller provides a fully signed transaction and funds gas themselves.
+ */
+export async function relayPayment(request: RelayPaymentRequest): Promise<RelayPaymentResponse> {
+  const response = await fetch(`${API_BASE_URL}/relay/payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<RelayPaymentResponse>(response);
+}
+
+/**
+ * Submit a private Permit2 bundle (approve + pay)
+ * POST /relay/permit2/bundle
+ *
+ * Submits a private bundle [top-up? -> approve(Permit2) -> payWithPermit2] via BEP322/NodeReal.
+ * If any tx fails, the bundle is not included and no gas is spent.
+ * This enables gasless payments for wallets that can sign raw transactions (Rabby, Trust, OKX, Binance, etc.)
+ */
+export async function relayPermit2Bundle(request: Permit2BundleRequest): Promise<Permit2BundleResponse> {
+  const response = await fetch(`${API_BASE_URL}/relay/permit2/bundle`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<Permit2BundleResponse>(response);
+}
+
+/**
+ * Relay a session revocation
+ * POST /relay/session/revoke
+ * On-chain; relayer pays gas to revoke by signature.
+ */
+export async function revokeSession(request: RelaySessionRevokeRequest): Promise<RelaySessionRevokeResponse> {
+  const response = await fetch(`${API_BASE_URL}/relay/session/revoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<RelaySessionRevokeResponse>(response);
+}
+
+// ============================================================================
+// Network Endpoints (Read-Only, Gas-Free)
+// ============================================================================
+
+/**
+ * List supported networks and contract addresses
+ * GET /networks
+ */
+export async function getNetworks(): Promise<NetworksResponse> {
+  const response = await fetch(`${API_BASE_URL}/networks`);
+  return handleResponse<NetworksResponse>(response);
+}
+
+// ============================================================================
+// Token Types
+// ============================================================================
+
+export interface Token {
+  symbol: string;
+  address: string;
+  decimals: number;
+  name?: string;
+}
+
+export interface TokensResponse {
+  [network: string]: Token[];
+}
+
+/**
+ * List supported tokens per network (cached ~4h)
+ * GET /tokens
+ */
+export async function getTokens(): Promise<TokensResponse> {
+  const response = await fetch(`${API_BASE_URL}/tokens`);
+  return handleResponse<TokensResponse>(response);
+}
+
+/**
+ * Get tokens for a specific network
+ */
+export async function getTokensByNetwork(network: NetworkKey): Promise<Token[]> {
+  const tokens = await getTokens();
+  return tokens[network] || [];
+}
+
+// ============================================================================
+// Relay Session Open Types & Endpoint
+// ============================================================================
+
+export interface RelaySessionOpenRequest {
+  network: NetworkKey;
+  grant: {
+    sessionId: string;
+    payer: string;
+    agent: string;
+    merchantScope: string;
+    deadline: number;
+    expiresAt: number;
+    epoch: number;
+    nonce: string;
+    rateLimit: {
+      maxTxPerMinute: number;
+      maxTxPerDay: number;
+      coolDownSeconds: number;
+    };
+    allowedSchemes: string[];
+    tokenCaps: Array<{
+      token: string;
+      cap: string;
+      dailyCap: string;
+    }>;
+  };
+  signature: string;
+}
+
+export interface RelaySessionOpenResponse {
+  txHash: string;
+  sessionId: string;
+  network: NetworkKey;
+}
+
+/**
+ * Relay a session open
+ * POST /relay/session/open
+ * On-chain; relayer pays gas to open session by signature.
+ */
+export async function openSession(request: RelaySessionOpenRequest): Promise<RelaySessionOpenResponse> {
+  const response = await fetch(`${API_BASE_URL}/relay/session/open`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<RelaySessionOpenResponse>(response);
+}
+
+// ============================================================================
+// Invoice Types
+// ============================================================================
+
+export type InvoiceStatus = 'pending' | 'paid' | 'canceled' | 'expired';
+
+export interface InvoiceCreateRequest {
+  title: string;
+  merchantId: string;
+  merchantName?: string;
+  merchantEmail?: string;
+  payerEmail?: string;
+  amount: string;
+  currencyToken: string;
+  network: NetworkKey;
+  tokenAllowlist: string[];
+  expiresAt?: string; // ISO date string
+  reference?: string;
+}
+
+export interface Invoice {
+  invoiceId: string;
+  merchantId: string;
+  title: string;
+  merchantName?: string;
+  merchantEmail?: string;
+  payerEmail?: string;
+  amount: string;
+  currencyToken: string;
+  network: NetworkKey;
+  tokenAllowlist: string[];
+  reference: string;
+  status: InvoiceStatus;
+  expiresAt?: string;
+  paymentId?: string;
+  resourceId?: string;
+  txHash?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceStatusResponse {
+  invoiceId: string;
+  status: InvoiceStatus;
+  paymentId?: string;
+  txHash?: string;
+  resourceId?: string;
+}
+
+// ============================================================================
+// Invoice Endpoints
+// ============================================================================
+
+/**
+ * Create an invoice (gas-free)
+ * POST /invoices
+ */
+export async function createInvoice(request: InvoiceCreateRequest): Promise<Invoice> {
+  const response = await fetch(`${API_BASE_URL}/invoices`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(request), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<Invoice>(response);
+}
+
+/**
+ * Get invoice by ID
+ * GET /invoices/{invoiceId}
+ */
+export async function getInvoice(invoiceId: string): Promise<Invoice> {
+  const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}`);
+  return handleResponse<Invoice>(response);
+}
+
+/**
+ * Get lightweight invoice status
+ * GET /invoices/{invoiceId}/status
+ */
+export async function getInvoiceStatus(invoiceId: string): Promise<InvoiceStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/status`);
+  return handleResponse<InvoiceStatusResponse>(response);
+}
+
+/**
+ * Cancel an invoice (must not be paid)
+ * POST /invoices/{invoiceId}/cancel
+ */
+export async function cancelInvoice(invoiceId: string): Promise<Invoice> {
+  const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/cancel`, {
+    method: 'POST',
+  });
+  return handleResponse<Invoice>(response);
+}
+
+/**
+ * Confirm invoice payment - called after successful on-chain payment
+ * POST /invoices/{invoiceId}/confirm-payment
+ * This is a fallback for when the event indexer doesn't match automatically
+ */
+export interface ConfirmPaymentRequest {
+  txHash: string;
+  paymentId?: string;
+  resourceId?: string;
+  paidBy: string;
+  paidAmount: string;
+  paidToken: string;
+}
+
+export async function confirmInvoicePayment(invoiceId: string, payment: ConfirmPaymentRequest): Promise<Invoice> {
+  const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/confirm-payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: safeStringify(payment), // Use safeStringify to handle BigInt values
+  });
+  return handleResponse<Invoice>(response);
+}
+
+/**
+ * Subscribe to invoice updates via SSE
+ * Returns an EventSource for real-time updates
+ */
+export function subscribeToInvoiceSSE(invoiceId: string): EventSource {
+  return new EventSource(`${API_BASE_URL}/invoices/${invoiceId}/stream-sse`);
+}
+
+/**
+ * Subscribe to invoice updates via WebSocket
+ * Returns a WebSocket for real-time updates
+ */
+export function subscribeToInvoiceWebSocket(invoiceId: string): WebSocket {
+  // Use wss:// for production, ws:// for localhost
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = window.location.hostname === 'localhost'
+    ? 'api.bnbpay.org'
+    : 'api.bnbpay.org';
+  return new WebSocket(`${wsProtocol}//${wsHost}/invoices/${invoiceId}/stream`);
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Check if the API is available
+ */
+export async function isApiAvailable(): Promise<boolean> {
+  try {
+    const health = await getHealth();
+    return health.status === 'ok';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get network config by chain ID
+ */
+export async function getNetworkByChainId(chainId: number): Promise<NetworkConfig | undefined> {
+  const { networks } = await getNetworks();
+  return networks.find(n => n.chainId === chainId);
+}
+
+/**
+ * Get network config by key
+ */
+export async function getNetworkByKey(key: NetworkKey): Promise<NetworkConfig | undefined> {
+  const { networks } = await getNetworks();
+  return networks.find(n => n.key === key);
+}
+
+/**
+ * Format payment amount for display (converts from wei-like string)
+ */
+export function formatPaymentAmount(amount: string, decimals: number = 18): string {
+  try {
+    const value = BigInt(amount);
+    const divisor = BigInt(10 ** decimals);
+    const integerPart = value / divisor;
+    const fractionalPart = value % divisor;
+
+    if (fractionalPart === 0n) {
+      return integerPart.toString();
+    }
+
+    const fractionalStr = fractionalPart.toString().padStart(decimals, '0');
+    const trimmedFractional = fractionalStr.replace(/0+$/, '');
+    return `${integerPart}.${trimmedFractional}`;
+  } catch {
+    return amount;
+  }
+}
+
+/**
+ * Parse payment amount to wei-like string
+ */
+export function parsePaymentAmount(amount: string, decimals: number = 18): string {
+  const [integerPart, fractionalPart = ''] = amount.split('.');
+  const paddedFractional = fractionalPart.padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(integerPart + paddedFractional).toString();
+}
+
+/**
+ * Format timestamp to readable date
+ */
+export function formatTimestamp(timestamp: string | number): string {
+  const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// ============================================================================
+// Export API Client Object
+// ============================================================================
+
+export const bnbpayApi = {
+  // Health
+  getHealth,
+  isApiAvailable,
+
+  // Payments
+  getPayments,
+  getPayment,
+  getPaymentStatus,
+  canPay,
+  buildPaymentIntent,
+
+  // Invoices
+  createInvoice,
+  getInvoice,
+  getInvoiceStatus,
+  cancelInvoice,
+  confirmInvoicePayment,
+  subscribeToInvoiceSSE,
+  subscribeToInvoiceWebSocket,
+
+  // Wallets
+  getWalletPayments,
+
+  // Sessions
+  getSessions,
+  getAgentSessions,
+  getSession,
+  getSessionSpends,
+  getSessionPayments,
+
+  // Relay
+  relayPayment,
+  relayPermit2Bundle,
+  revokeSession,
+  openSession,
+
+  // Networks & Tokens
+  getNetworks,
+  getNetworkByChainId,
+  getNetworkByKey,
+  getTokens,
+  getTokensByNetwork,
+
+  // Utilities
+  formatPaymentAmount,
+  parsePaymentAmount,
+  formatTimestamp,
+  serializeBigInt,
+  safeStringify,
+};
+
+export default bnbpayApi;
