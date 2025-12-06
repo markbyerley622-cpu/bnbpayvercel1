@@ -41,6 +41,7 @@ export const NETWORKS = {
       USDC: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
       USD1: '0x0000000000000000000000000000000000000000', // TODO: Add mainnet USD1 address
       WUSD: '0x0000000000000000000000000000000000000000', // TODO: Add mainnet WUSD address
+      XUSD: '0x0000000000000000000000000000000000000000', // TODO: Add mainnet XUSD address
     },
   },
   testnet: {
@@ -61,13 +62,14 @@ export const NETWORKS = {
       sessionStore: '0x9BDC430A2d3cc0ec86B266075c6Fb30dD3599983',
       permit2: '0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768', // Permit2 contract on BSC Testnet
     },
-    // Token addresses - same symbols as mainnet (BNB, USDT, USDC, USD1, WUSD)
+    // Token addresses - same symbols as mainnet (BNB, USDT, USDC, USD1, WUSD, XUSD)
     tokens: {
       BNB: '0x0000000000000000000000000000000000000000',
       USDT: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd',
       USDC: '0xeD24FC36d5Ee211Ea25A80239Fb8C4Cfd80f12Ee',
       USD1: '0xE71Ad4C949dF74c229697b3A8414A0833ABd4165', // USD1 contract (6 decimals)
       WUSD: '0x5e5ecf5e2512719DE778b88191062114Aa771BCf', // WUSD EIP-2612 (18 decimals)
+      XUSD: '0xBCa3782BC181446a0bdB87356Bde326559a4FAb2', // XUSD EIP-3009 (tx: 0x0537f783475458547f2ae79c7511fcfb9690af990f646e659b145c6262a32c49)
     },
   },
 } as const;

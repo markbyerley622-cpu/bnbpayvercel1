@@ -16,6 +16,7 @@ export const TOKEN_PRICES = {
   USDC: 1,     // $1 per USDC
   USD1: 1,     // $1 per USD1
   WUSD: 1,     // $1 per WUSD
+  XUSD: 1,     // $1 per XUSD (EIP-3009 compatible)
 } as const;
 
 // Legacy exports for backward compatibility
@@ -23,18 +24,18 @@ export const MAINNET_PRICES = TOKEN_PRICES;
 export const TESTNET_PRICES = TOKEN_PRICES;
 
 // Single token type - same symbols for both networks
-export type Token = 'BNB' | 'USDT' | 'USDC' | 'USD1' | 'WUSD';
+export type Token = 'BNB' | 'USDT' | 'USDC' | 'USD1' | 'WUSD' | 'XUSD';
 export type MainnetToken = Token;
 export type TestnetToken = Token;
 
 /**
  * Get tokens for network
- * Matches the API token list: BNB, USDT, USDC, USD1, WUSD
+ * Matches the API token list: BNB, USDT, USDC, USD1, WUSD, XUSD
  * Same symbols for both mainnet and testnet
  */
 export function getTokensForNetwork(_network: NetworkType): Token[] {
   // Same tokens for both mainnet and testnet - network determines chain
-  return ['BNB', 'USDT', 'USDC', 'USD1', 'WUSD'];
+  return ['BNB', 'USDT', 'USDC', 'USD1', 'WUSD', 'XUSD'];
 }
 
 /**
@@ -99,12 +100,13 @@ export function getPaymentOptions(usdAmount: string | number, network: NetworkTy
 
 /**
  * Get the correct image path for a token
- * BNB uses bnblogo.png, USD1 uses USD1.png, WUSD uses wusd.png, others use lowercase names
+ * BNB uses bnblogo.png, USD1 uses USD1.png, WUSD uses wusd.png, XUSD uses xusd-removebg-preview.png
  */
 export function getTokenImagePath(token: Token | string): string {
   if (token === 'BNB') return '/bnblogo.png';
   if (token === 'USD1') return '/USD1.png';
   if (token === 'WUSD') return '/wusd.png';
+  if (token === 'XUSD') return '/xusd-removebg-preview.png';
   return `/${token.toLowerCase()}.png`;
 }
 

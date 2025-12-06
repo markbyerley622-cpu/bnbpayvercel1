@@ -801,6 +801,12 @@ export interface Token {
   address: string;
   decimals: number;
   name?: string;
+  isNative?: boolean;
+  tokenType?: 'native' | 'erc20';
+  supportsPermit2?: boolean;
+  supportsEIP2612?: boolean;
+  supportsEIP3009?: boolean;
+  feeOnTransfer?: boolean;
 }
 
 export interface TokensResponse {
@@ -822,6 +828,18 @@ export async function getTokens(): Promise<TokensResponse> {
 export async function getTokensByNetwork(network: NetworkKey): Promise<Token[]> {
   const tokens = await getTokens();
   return tokens[network] || [];
+}
+
+/**
+ * Get token capabilities by symbol for a specific network
+ * Returns the token info including EIP-2612/EIP-3009/Permit2 support flags
+ */
+export async function getTokenCapabilities(
+  symbol: string,
+  network: NetworkKey
+): Promise<Token | undefined> {
+  const tokens = await getTokensByNetwork(network);
+  return tokens.find(t => t.symbol.toUpperCase() === symbol.toUpperCase());
 }
 
 // ============================================================================

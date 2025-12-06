@@ -8,8 +8,8 @@ import { getTokenImagePath, getTokenDisplayName, getTokensForNetwork, type Token
 import { FloatingParticles } from './FloatingParticles';
 import { AgentFlowPanel } from './AgentFlowPanel';
 import { PaymentReceipt } from './PaymentReceipt';
-import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, type Invoice as ApiInvoice } from '../lib/bnbpay-api';
-import { payInvoiceGasless, isPermit2Approved, approvePermit2, supportsEIP2612 } from '../lib/gasless-payments';
+import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, getTokenCapabilities, type Invoice as ApiInvoice, type NetworkKey } from '../lib/bnbpay-api';
+import { payInvoiceGasless, isPermit2Approved, approvePermit2, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
 
 interface InvoicePageProps {
   invoiceId: string;
@@ -38,11 +38,13 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
   const sseRef = useRef<EventSource | null>(null);
 
   // Payment mode: 'gas' (user pays gas) or 'gasless' (relayer pays gas)
-  // Gasless mode uses Permit2/EIP2612 + witness signatures (API BigInt issue fixed)
+  // Gasless mode uses EIP-3009/EIP-2612/Permit2 + witness signatures
   const [paymentMode, setPaymentMode] = useState<'gas' | 'gasless'>('gas');
   const [permit2Approved, setPermit2Approved] = useState<boolean>(false);
   const [checkingPermit2, setCheckingPermit2] = useState<boolean>(false);
   const [supportsPermit, setSupportsPermit] = useState<boolean>(false);
+  const [supportsEip3009, setSupportsEip3009] = useState<boolean>(false);
+  const [supportsEip2612, setSupportsEip2612] = useState<boolean>(false);
 
   // Generate QR code for payment page URL - Desktop
   // Uses the full payment link URL so any QR scanner can open the payment page
@@ -376,6 +378,8 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       // Native BNB never supports gasless
       if (selectedPayToken === 'BNB') {
         setSupportsPermit(false);
+        setSupportsEip3009(false);
+        setSupportsEip2612(false);
         setPermit2Approved(false);
         setPaymentMode('gas'); // Force gas mode for BNB
         return;
@@ -395,6 +399,8 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
 
         if (!tokenAddress || tokenAddress === ethers.ZeroAddress) {
           setSupportsPermit(false);
+          setSupportsEip3009(false);
+          setSupportsEip2612(false);
           setPermit2Approved(false);
           return;
         }
@@ -402,26 +408,59 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
         const provider = getProvider();
         if (!provider) {
           setSupportsPermit(false);
+          setSupportsEip3009(false);
+          setSupportsEip2612(false);
           setPermit2Approved(false);
           return;
         }
 
-        // Check if token supports EIP-2612 or if Permit2 is approved
-        const [hasPermit, isApproved] = await Promise.all([
-          supportsEIP2612(tokenAddress, provider),
-          isPermit2Approved(tokenAddress, walletAddress, provider),
-        ]);
+        // Fetch token capabilities from API (authoritative source)
+        const networkKey: NetworkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
+        const tokenCapabilities = await getTokenCapabilities(selectedPayToken, networkKey);
+
+        let hasEip3009 = false;
+        let hasEip2612 = false;
+        let hasPermit2 = false;
+
+        if (tokenCapabilities) {
+          // Use API capabilities (authoritative)
+          hasEip3009 = tokenCapabilities.supportsEIP3009 || false;
+          hasEip2612 = tokenCapabilities.supportsEIP2612 || false;
+          hasPermit2 = tokenCapabilities.supportsPermit2 || false;
+          console.log(`Token ${selectedPayToken} capabilities from API:`, {
+            eip3009: hasEip3009,
+            eip2612: hasEip2612,
+            permit2: hasPermit2,
+          });
+        } else {
+          // Fallback to on-chain detection if token not in API
+          console.log(`Token ${selectedPayToken} not found in API, using on-chain detection`);
+          [hasEip3009, hasEip2612] = await Promise.all([
+            supportsEIP3009(tokenAddress, provider),
+            supportsEIP2612(tokenAddress, provider),
+          ]);
+        }
+
+        // Check Permit2 approval status (always on-chain)
+        const isApproved = hasPermit2 ? await isPermit2Approved(tokenAddress, walletAddress, provider) : false;
 
         console.log(`Token ${selectedPayToken} gasless support:`, {
-          eip2612: hasPermit,
+          eip3009: hasEip3009,
+          eip2612: hasEip2612,
           permit2Approved: isApproved,
         });
 
-        setSupportsPermit(hasPermit || isApproved);
+        // Track individual support types
+        setSupportsEip3009(hasEip3009);
+        setSupportsEip2612(hasEip2612);
+        // EIP-3009 is preferred, then EIP-2612, then Permit2
+        setSupportsPermit(hasEip3009 || hasEip2612 || isApproved);
         setPermit2Approved(isApproved);
       } catch (error) {
         console.error('Failed to check gasless support:', error);
         setSupportsPermit(false);
+        setSupportsEip3009(false);
+        setSupportsEip2612(false);
         setPermit2Approved(false);
       } finally {
         setCheckingPermit2(false);
@@ -1172,7 +1211,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                       <p className="text-amber-500 font-semibold text-sm mb-1">Native BNB Payment</p>
                       <p className="text-gray-400 text-xs">
                         Native BNB transfers always require gas to be paid by the sender. This is a blockchain limitation.
-                        For gasless payments, switch to ERC20 tokens like USDT, USDC, USD1, or WUSD.
+                        For gasless payments, switch to ERC20 tokens like USDT, USDC, USD1, WUSD, or XUSD.
                       </p>
                     </div>
                   </div>
@@ -1274,7 +1313,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                         <p className="text-green-400 text-xs">
-                          ✨ {selectedPayToken} supports gasless payments! {supportsPermit ? 'EIP-2612 permit enabled.' : 'Permit2 approved.'}
+                          ✨ {selectedPayToken} supports gasless payments! {supportsEip3009 ? 'EIP-3009 (TransferWithAuthorization) enabled.' : supportsEip2612 ? 'EIP-2612 permit enabled.' : 'Permit2 approved.'}
                         </p>
                       </div>
                     </div>
@@ -1383,7 +1422,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                         <p className="text-green-400 text-xs">
-                          {permit2Approved ? 'Gasless ready: Permit2 approved' : 'Gasless ready: Token supports EIP-2612'}
+                          {permit2Approved ? 'Gasless ready: Permit2 approved' : supportsEip3009 ? 'Gasless ready: Token supports EIP-3009' : 'Gasless ready: Token supports EIP-2612'}
                         </p>
                       </div>
                     </div>
@@ -1392,7 +1431,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                   {paymentMode === 'gasless' && (
                     <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                       <p className="text-blue-400 text-xs">
-                        <strong>Gasless payment:</strong> Sign a permit message to authorize payment. No approve transaction needed, relayer pays all gas.
+                        <strong>Gasless payment:</strong> {supportsEip3009 ? 'Sign a transfer authorization message (EIP-3009).' : 'Sign a permit message to authorize payment.'} No approve transaction needed, relayer pays all gas.
                       </p>
                     </div>
                   )}
@@ -1654,7 +1693,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                     <div className="flex-1">
                       <p className="text-amber-500 font-semibold text-xs mb-1">Native BNB Payment</p>
                       <p className="text-gray-400 text-xs">
-                        Native BNB transfers always require gas. For gasless, use USDT, USDC, USD1, or WUSD.
+                        Native BNB transfers always require gas. For gasless, use USDT, USDC, USD1, WUSD, or XUSD.
                       </p>
                     </div>
                   </div>
