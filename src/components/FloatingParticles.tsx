@@ -11,7 +11,7 @@ interface Particle {
   wobbleSpeed: number;
 }
 
-// Background glow orbs component
+// Background glow orbs component - Very prominent yellow/purple glows
 export function GlowBackground() {
   return (
     <div className="glow-background">
@@ -19,6 +19,7 @@ export function GlowBackground() {
       <div className="glow-orb glow-orb-2"></div>
       <div className="glow-orb glow-orb-3"></div>
       <div className="glow-orb glow-orb-4"></div>
+      <div className="glow-orb glow-orb-5"></div>
     </div>
   );
 }

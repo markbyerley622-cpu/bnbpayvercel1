@@ -35,7 +35,11 @@ function generateInvoiceLink(invoice: InvoiceData): string {
 import { getTokenImagePath, getTokenDisplayName } from '../lib/price-utils';
 import { useWalletPayments } from '../lib/useBNBPayApi';
 import type { Payment } from '../lib/bnbpay-api';
-import { formatPaymentAmount, getInvoiceStatus, safeStringify } from '../lib/bnbpay-api';
+import { formatPaymentAmount, getInvoiceStatus, safeStringify, cancelInvoice as cancelInvoiceApi } from '../lib/bnbpay-api';
+
+// Constants for pagination
+const ITEMS_PER_PAGE = 5;
+const TX_PER_PAGE = 5;
 
 export function HistoryPage() {
   const [network, setNetwork] = useState<NetworkType>('testnet');
@@ -46,7 +50,19 @@ export function HistoryPage() {
   const [mounted, setMounted] = useState(false);
   const [selectedItemForMCP, setSelectedItemForMCP] = useState<InvoiceData | SubscriptionData | null>(null);
   const [txPage, setTxPage] = useState(1);
-  const TX_PER_PAGE = 10;
+
+  // Pagination states for invoices and subscriptions
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [subscriptionPage, setSubscriptionPage] = useState(1);
+
+  // Search states
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [subscriptionSearchQuery, setSubscriptionSearchQuery] = useState('');
+  const [txSearchQuery, setTxSearchQuery] = useState('');
+
+  // Cancel invoice states
+  const [cancellingInvoiceId, setCancellingInvoiceId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   // Fetch on-chain payments from BNBPay API
   // Use 'all' role to get payments where wallet is either payer or merchant
@@ -283,6 +299,58 @@ export function HistoryPage() {
     }
   };
 
+  // Cancel invoice via BNBPay API (must not be paid)
+  const handleCancelInvoice = async (invoiceId: string, currentStatus?: string) => {
+    if (!walletAddress) return;
+
+    // Don't allow cancelling already paid or cancelled invoices
+    if (currentStatus === 'paid') {
+      setCancelError('Cannot cancel a paid invoice');
+      setTimeout(() => setCancelError(null), 3000);
+      return;
+    }
+    if (currentStatus === 'canceled' || currentStatus === 'cancelled') {
+      setCancelError('Invoice is already cancelled');
+      setTimeout(() => setCancelError(null), 3000);
+      return;
+    }
+
+    if (!confirm('Are you sure you want to cancel this invoice? This action cannot be undone.')) return;
+
+    setCancellingInvoiceId(invoiceId);
+    setCancelError(null);
+
+    try {
+      const cancelledInvoice = await cancelInvoiceApi(invoiceId);
+      console.log('Invoice cancelled:', cancelledInvoice);
+
+      // Update local state to reflect cancelled status
+      setInvoices(prev => prev.map(inv =>
+        inv.invoiceId === invoiceId
+          ? { ...inv, status: 'cancelled' as const }
+          : inv
+      ));
+
+      // Also update localStorage
+      const storageKey = findStorageKey('invoices');
+      if (storageKey) {
+        const updatedInvoices = invoices.map(inv =>
+          inv.invoiceId === invoiceId
+            ? { ...inv, status: 'cancelled' as const }
+            : inv
+        );
+        localStorage.setItem(storageKey, safeStringify(updatedInvoices));
+      }
+    } catch (error) {
+      console.error('Failed to cancel invoice:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to cancel invoice';
+      setCancelError(errorMessage);
+      setTimeout(() => setCancelError(null), 5000);
+    } finally {
+      setCancellingInvoiceId(null);
+    }
+  };
+
   const deleteSubscription = (subscriptionId: string) => {
     if (!walletAddress) return;
     if (!confirm('Are you sure you want to delete this subscription?')) return;
@@ -395,34 +463,125 @@ export function HistoryPage() {
               {/* Invoices Tab */}
               {activeTab === 'invoices' && (
                 <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-                  {invoices.length === 0 ? (
-                    <div className="text-center py-20">
-                      <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                      </svg>
-                      <h3 className="text-xl font-semibold text-gray-400">No invoices yet</h3>
-                      <p className="text-gray-500 mt-2">Create your first invoice to get started</p>
-                      <a href="/" className="inline-block mt-6 px-6 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all">
-                        Create Invoice
-                      </a>
+                  {/* Cancel Error Toast */}
+                  {cancelError && (
+                    <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between animate-fade-in">
+                      <div className="flex items-center space-x-3">
+                        <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p className="text-red-400 text-sm">{cancelError}</p>
+                      </div>
+                      <button
+                        onClick={() => setCancelError(null)}
+                        className="text-red-400 hover:text-red-300 transition-colors p-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                      </button>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-6">
-                      {invoices.map((invoice, index) => (
-                        <div key={index} className="card-shadow rounded-2xl p-4 sm:p-6 hover-lift transition-all relative group">
-                          {/* Delete Button - appears on hover */}
-                          <button
-                            onClick={() => deleteInvoice(invoice.invoiceId || '')}
-                            className="absolute top-2 right-2 sm:top-4 sm:right-4 w-8 h-8 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
-                            title="Delete Invoice"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                          </button>
+                  )}
 
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                            <div className="flex-1 min-w-0 pr-8 sm:pr-0">
+                  {/* Search Bar */}
+                  <div className="mb-6">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search by transaction hash, invoice ID, or description..."
+                        value={invoiceSearchQuery}
+                        onChange={(e) => {
+                          setInvoiceSearchQuery(e.target.value);
+                          setInvoicePage(1); // Reset to first page on search
+                        }}
+                        className="w-full bg-bnb-gray/30 text-white placeholder-gray-500 px-4 py-3 pl-12 rounded-xl border border-bnb-gray focus:border-bnb-yellow focus:outline-none transition-colors"
+                      />
+                      <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                      </svg>
+                      {invoiceSearchQuery && (
+                        <button
+                          onClick={() => {
+                            setInvoiceSearchQuery('');
+                            setInvoicePage(1);
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {(() => {
+                    // Filter invoices based on search
+                    const filteredInvoices = invoices.filter((invoice) => {
+                      if (!invoiceSearchQuery) return true;
+                      const query = invoiceSearchQuery.toLowerCase();
+                      return (
+                        (invoice.txHash?.toLowerCase().includes(query)) ||
+                        (invoice.invoiceId?.toLowerCase().includes(query)) ||
+                        (invoice.description?.toLowerCase().includes(query)) ||
+                        (invoice.paymentId?.toLowerCase().includes(query)) ||
+                        (invoice.customer?.name?.toLowerCase().includes(query)) ||
+                        (invoice.customer?.email?.toLowerCase().includes(query))
+                      );
+                    });
+
+                    // Pagination
+                    const totalInvoicePages = Math.ceil(filteredInvoices.length / ITEMS_PER_PAGE);
+                    const startIdx = (invoicePage - 1) * ITEMS_PER_PAGE;
+                    const paginatedInvoices = filteredInvoices.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+                    if (filteredInvoices.length === 0 && invoiceSearchQuery) {
+                      return (
+                        <div className="text-center py-12">
+                          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                          </svg>
+                          <h3 className="text-xl font-semibold text-gray-400">No results found</h3>
+                          <p className="text-gray-500 mt-2">No invoices match "{invoiceSearchQuery}"</p>
+                          <button
+                            onClick={() => setInvoiceSearchQuery('')}
+                            className="mt-4 px-4 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all font-semibold"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    if (invoices.length === 0) {
+                      return (
+                        <div className="text-center py-20">
+                          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                          </svg>
+                          <h3 className="text-xl font-semibold text-gray-400">No invoices yet</h3>
+                          <p className="text-gray-500 mt-2">Create your first invoice to get started</p>
+                          <a href="/" className="inline-block mt-6 px-6 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all">
+                            Create Invoice
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* Results count */}
+                        <div className="mb-4 text-gray-400 text-sm">
+                          Showing {startIdx + 1}-{Math.min(startIdx + ITEMS_PER_PAGE, filteredInvoices.length)} of {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6">
+                          {paginatedInvoices.map((invoice, index) => (
+                        <div key={index} className="card-shadow rounded-2xl p-4 sm:p-6 hover-lift transition-all relative group">
+                          {/* Header row with title, amount, and action buttons */}
+                          <div className="flex items-start justify-between gap-4 mb-4">
+                            {/* Left side: Title and status */}
+                            <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <h3 className="text-lg sm:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-none">{invoice.description}</h3>
                                 <span className="px-2 sm:px-3 py-1 bg-bnb-yellow/20 text-bnb-yellow text-xs font-semibold rounded-full whitespace-nowrap">
@@ -434,6 +593,20 @@ export function HistoryPage() {
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                     <span>Paid</span>
+                                  </span>
+                                ) : invoice.status === 'canceled' || invoice.status === 'cancelled' ? (
+                                  <span className="px-2 sm:px-3 py-1 bg-gray-500/20 text-gray-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                                    </svg>
+                                    <span>Cancelled</span>
+                                  </span>
+                                ) : invoice.status === 'expired' ? (
+                                  <span className="px-2 sm:px-3 py-1 bg-red-500/20 text-red-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>Expired</span>
                                   </span>
                                 ) : (
                                   <span className="px-2 sm:px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
@@ -451,16 +624,54 @@ export function HistoryPage() {
                                 )}
                               </p>
                             </div>
-                            <div className="text-left sm:text-right sm:pr-10 flex-shrink-0">
-                              <div className="flex items-center sm:justify-end space-x-2">
-                                <p className="text-2xl sm:text-3xl font-bold text-bnb-yellow">{invoice.amount}</p>
-                                <img
-                                  src={getTokenImagePath(invoice.settlement || invoice.paymentToken || 'BNB')}
-                                  alt={invoice.settlement || invoice.paymentToken}
-                                  className="h-6 w-6 sm:h-7 sm:w-7 rounded-full"
-                                />
+
+                            {/* Right side: Amount and action buttons */}
+                            <div className="flex items-start gap-3 flex-shrink-0">
+                              {/* Amount display */}
+                              <div className="text-right">
+                                <div className="flex items-center justify-end space-x-2">
+                                  <p className="text-2xl sm:text-3xl font-bold text-bnb-yellow">{invoice.amount}</p>
+                                  <img
+                                    src={getTokenImagePath(invoice.settlement || invoice.paymentToken || 'BNB')}
+                                    alt={invoice.settlement || invoice.paymentToken}
+                                    className="h-6 w-6 sm:h-7 sm:w-7 rounded-full"
+                                  />
+                                </div>
+                                <p className="text-gray-500 text-xs sm:text-sm">{getTokenDisplayName(invoice.settlement || invoice.paymentToken || 'BNB')}</p>
                               </div>
-                              <p className="text-gray-500 text-xs sm:text-sm">{getTokenDisplayName(invoice.settlement || invoice.paymentToken || 'BNB')}</p>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                {/* Cancel Button - only show for pending invoices */}
+                                {invoice.status !== 'paid' && invoice.status !== 'canceled' && invoice.status !== 'cancelled' && (
+                                  <button
+                                    onClick={() => handleCancelInvoice(invoice.invoiceId || '', invoice.status)}
+                                    disabled={cancellingInvoiceId === invoice.invoiceId}
+                                    className="w-8 h-8 bg-amber-500/10 hover:bg-amber-500/30 text-amber-400 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/40 rounded-full flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Cancel Invoice"
+                                  >
+                                    {cancellingInvoiceId === invoice.invoiceId ? (
+                                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                                      </svg>
+                                    )}
+                                  </button>
+                                )}
+                                {/* Delete Button */}
+                                <button
+                                  onClick={() => deleteInvoice(invoice.invoiceId || '')}
+                                  className="w-8 h-8 bg-red-500/10 hover:bg-red-500/30 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded-full flex items-center justify-center transition-all duration-200"
+                                  title="Delete Invoice"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-bnb-gray">
@@ -613,28 +824,169 @@ export function HistoryPage() {
                           )}
                         </div>
                       ))}
-                    </div>
-                  )}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalInvoicePages > 1 && (
+                          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-bnb-gray/20 rounded-xl">
+                            <p className="text-gray-400 text-sm">
+                              Page {invoicePage} of {totalInvoicePages}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setInvoicePage(Math.max(1, invoicePage - 1))}
+                                disabled={invoicePage === 1}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                <span className="text-sm">Prev</span>
+                              </button>
+
+                              {/* Page numbers */}
+                              <div className="flex items-center space-x-1">
+                                {Array.from({ length: Math.min(5, totalInvoicePages) }, (_, i) => {
+                                  let pageNum;
+                                  if (totalInvoicePages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (invoicePage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (invoicePage >= totalInvoicePages - 2) {
+                                    pageNum = totalInvoicePages - 4 + i;
+                                  } else {
+                                    pageNum = invoicePage - 2 + i;
+                                  }
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setInvoicePage(pageNum)}
+                                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                                        invoicePage === pageNum
+                                          ? 'bg-bnb-yellow text-bnb-dark'
+                                          : 'bg-bnb-gray/50 text-gray-300 hover:bg-bnb-gray hover:text-white'
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <button
+                                onClick={() => setInvoicePage(Math.min(totalInvoicePages, invoicePage + 1))}
+                                disabled={invoicePage === totalInvoicePages}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                              >
+                                <span className="text-sm">Next</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* Subscriptions Tab */}
               {activeTab === 'subscriptions' && (
                 <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-                  {subscriptions.length === 0 ? (
-                    <div className="text-center py-20">
-                      <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                  {/* Search Bar */}
+                  <div className="mb-6">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search by transaction hash, plan name, or subscription ID..."
+                        value={subscriptionSearchQuery}
+                        onChange={(e) => {
+                          setSubscriptionSearchQuery(e.target.value);
+                          setSubscriptionPage(1); // Reset to first page on search
+                        }}
+                        className="w-full bg-bnb-gray/30 text-white placeholder-gray-500 px-4 py-3 pl-12 rounded-xl border border-bnb-gray focus:border-bnb-yellow focus:outline-none transition-colors"
+                      />
+                      <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                       </svg>
-                      <h3 className="text-xl font-semibold text-gray-400">No subscriptions yet</h3>
-                      <p className="text-gray-500 mt-2">Create your first subscription plan to get started</p>
-                      <a href="/" className="inline-block mt-6 px-6 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all">
-                        Create Subscription
-                      </a>
+                      {subscriptionSearchQuery && (
+                        <button
+                          onClick={() => {
+                            setSubscriptionSearchQuery('');
+                            setSubscriptionPage(1);
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-6">
-                      {subscriptions.map((subscription, index) => (
+                  </div>
+
+                  {(() => {
+                    // Filter subscriptions based on search
+                    const filteredSubscriptions = subscriptions.filter((subscription) => {
+                      if (!subscriptionSearchQuery) return true;
+                      const query = subscriptionSearchQuery.toLowerCase();
+                      return (
+                        (subscription.txHash?.toLowerCase().includes(query)) ||
+                        (subscription.subscriptionId?.toLowerCase().includes(query)) ||
+                        (subscription.planName?.toLowerCase().includes(query)) ||
+                        (subscription.customerEmail?.toLowerCase().includes(query))
+                      );
+                    });
+
+                    // Pagination
+                    const totalSubPages = Math.ceil(filteredSubscriptions.length / ITEMS_PER_PAGE);
+                    const startIdx = (subscriptionPage - 1) * ITEMS_PER_PAGE;
+                    const paginatedSubscriptions = filteredSubscriptions.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+                    if (filteredSubscriptions.length === 0 && subscriptionSearchQuery) {
+                      return (
+                        <div className="text-center py-12">
+                          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                          </svg>
+                          <h3 className="text-xl font-semibold text-gray-400">No results found</h3>
+                          <p className="text-gray-500 mt-2">No subscriptions match "{subscriptionSearchQuery}"</p>
+                          <button
+                            onClick={() => setSubscriptionSearchQuery('')}
+                            className="mt-4 px-4 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all font-semibold"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    if (subscriptions.length === 0) {
+                      return (
+                        <div className="text-center py-20">
+                          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                          </svg>
+                          <h3 className="text-xl font-semibold text-gray-400">No subscriptions yet</h3>
+                          <p className="text-gray-500 mt-2">Create your first subscription plan to get started</p>
+                          <a href="/" className="inline-block mt-6 px-6 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all">
+                            Create Subscription
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* Results count */}
+                        <div className="mb-4 text-gray-400 text-sm">
+                          Showing {startIdx + 1}-{Math.min(startIdx + ITEMS_PER_PAGE, filteredSubscriptions.length)} of {filteredSubscriptions.length} subscription{filteredSubscriptions.length !== 1 ? 's' : ''}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6">
+                          {paginatedSubscriptions.map((subscription, index) => (
                         <div key={index} className="card-shadow rounded-2xl p-4 sm:p-6 hover-lift transition-all relative group">
                           {/* Delete Button - appears on hover */}
                           <button
@@ -771,8 +1123,71 @@ export function HistoryPage() {
                           )}
                         </div>
                       ))}
-                    </div>
-                  )}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalSubPages > 1 && (
+                          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-bnb-gray/20 rounded-xl">
+                            <p className="text-gray-400 text-sm">
+                              Page {subscriptionPage} of {totalSubPages}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setSubscriptionPage(Math.max(1, subscriptionPage - 1))}
+                                disabled={subscriptionPage === 1}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                <span className="text-sm">Prev</span>
+                              </button>
+
+                              {/* Page numbers */}
+                              <div className="flex items-center space-x-1">
+                                {Array.from({ length: Math.min(5, totalSubPages) }, (_, i) => {
+                                  let pageNum;
+                                  if (totalSubPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (subscriptionPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (subscriptionPage >= totalSubPages - 2) {
+                                    pageNum = totalSubPages - 4 + i;
+                                  } else {
+                                    pageNum = subscriptionPage - 2 + i;
+                                  }
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setSubscriptionPage(pageNum)}
+                                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                                        subscriptionPage === pageNum
+                                          ? 'bg-bnb-yellow text-bnb-dark'
+                                          : 'bg-bnb-gray/50 text-gray-300 hover:bg-bnb-gray hover:text-white'
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <button
+                                onClick={() => setSubscriptionPage(Math.min(totalSubPages, subscriptionPage + 1))}
+                                disabled={subscriptionPage === totalSubPages}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                              >
+                                <span className="text-sm">Next</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1094,40 +1509,108 @@ export function HistoryPage() {
 
                         {/* Recent Transactions Table */}
                         {(() => {
+                          // Filter payments based on search
+                          const filteredPayments = payments.filter((payment) => {
+                            if (!txSearchQuery) return true;
+                            const query = txSearchQuery.toLowerCase();
+                            return (
+                              (payment.txHash?.toLowerCase().includes(query)) ||
+                              (payment.paymentId?.toLowerCase().includes(query)) ||
+                              (payment.payer?.toLowerCase().includes(query)) ||
+                              (payment.merchant?.toLowerCase().includes(query)) ||
+                              (payment.reference?.toLowerCase().includes(query))
+                            );
+                          });
+
                           // Pagination logic
-                          const totalPages = Math.ceil(payments.length / TX_PER_PAGE);
+                          const totalPages = Math.ceil(filteredPayments.length / TX_PER_PAGE);
                           const startIdx = (txPage - 1) * TX_PER_PAGE;
                           const endIdx = startIdx + TX_PER_PAGE;
-                          const paginatedPayments = payments.slice(startIdx, endIdx);
+                          const paginatedPayments = filteredPayments.slice(startIdx, endIdx);
 
                           return (
                             <div className="card-shadow rounded-2xl overflow-hidden">
-                              <div className="p-6 border-b border-bnb-gray">
-                                <div className="flex items-center justify-between">
-                                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                                    <svg className="w-5 h-5 text-bnb-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                              <div className="p-4 sm:p-6 border-b border-bnb-gray">
+                                <div className="flex flex-col gap-4">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                                      <svg className="w-5 h-5 text-bnb-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                      </svg>
+                                      <span>Recent Transactions</span>
+                                    </h3>
+                                    <span className="text-gray-400 text-sm">
+                                      {txSearchQuery ? (
+                                        <>Found {filteredPayments.length} result{filteredPayments.length !== 1 ? 's' : ''}</>
+                                      ) : (
+                                        <>Showing {filteredPayments.length > 0 ? startIdx + 1 : 0}-{Math.min(endIdx, filteredPayments.length)} of {totalTransactions}</>
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {/* Search Bar for Transactions */}
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      placeholder="Search by BSC transaction hash, payment ID, or address..."
+                                      value={txSearchQuery}
+                                      onChange={(e) => {
+                                        setTxSearchQuery(e.target.value);
+                                        setTxPage(1); // Reset to first page on search
+                                      }}
+                                      className="w-full bg-bnb-gray/30 text-white placeholder-gray-500 px-4 py-3 pl-12 rounded-xl border border-bnb-gray focus:border-bnb-yellow focus:outline-none transition-colors text-sm"
+                                    />
+                                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                     </svg>
-                                    <span>Recent Transactions</span>
-                                  </h3>
-                                  <span className="text-gray-400 text-sm">
-                                    Showing {startIdx + 1}-{Math.min(endIdx, payments.length)} of {totalTransactions}
-                                  </span>
+                                    {txSearchQuery && (
+                                      <button
+                                        onClick={() => {
+                                          setTxSearchQuery('');
+                                          setTxPage(1);
+                                        }}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Table Header */}
-                              <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-bnb-gray/30 text-gray-400 text-xs font-medium uppercase tracking-wider">
-                                <div className="col-span-3">Payment ID</div>
-                                <div className="col-span-2">Amount</div>
-                                <div className="col-span-2">From</div>
-                                <div className="col-span-2">To</div>
-                                <div className="col-span-1">Status</div>
-                                <div className="col-span-2">Time</div>
-                              </div>
+                              {/* No Results State */}
+                              {filteredPayments.length === 0 && txSearchQuery && (
+                                <div className="p-8 text-center">
+                                  <svg className="w-12 h-12 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                  </svg>
+                                  <h4 className="text-gray-400 font-medium mb-1">No transactions found</h4>
+                                  <p className="text-gray-500 text-sm mb-3">No transactions match "{txSearchQuery}"</p>
+                                  <button
+                                    onClick={() => setTxSearchQuery('')}
+                                    className="px-4 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all text-sm font-semibold"
+                                  >
+                                    Clear Search
+                                  </button>
+                                </div>
+                              )}
 
-                              {/* Table Body */}
-                              <div className="divide-y divide-bnb-gray/50">
+                              {/* Table Header - only show when there are results */}
+                              {filteredPayments.length > 0 && (
+                                <>
+                                  <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-bnb-gray/30 text-gray-400 text-xs font-medium uppercase tracking-wider">
+                                    <div className="col-span-3">Payment ID</div>
+                                    <div className="col-span-2">Amount</div>
+                                    <div className="col-span-2">From</div>
+                                    <div className="col-span-2">To</div>
+                                    <div className="col-span-1">Status</div>
+                                    <div className="col-span-2">Time</div>
+                                  </div>
+
+                                  {/* Table Body */}
+                                  <div className="divide-y divide-bnb-gray/50">
                                 {paginatedPayments.map((payment: Payment, index: number) => (
                                   <div
                                     key={payment.paymentId || index}
@@ -1194,10 +1677,10 @@ export function HistoryPage() {
                                     </div>
                                   </div>
                                 ))}
-                              </div>
+                                  </div>
 
-                              {/* Pagination Footer */}
-                              <div className="px-6 py-4 bg-bnb-gray/20 border-t border-bnb-gray/30">
+                                  {/* Pagination Footer */}
+                                  <div className="px-4 sm:px-6 py-4 bg-bnb-gray/20 border-t border-bnb-gray/30">
                                 <div className="flex items-center justify-between">
                                   <p className="text-gray-400 text-sm">
                                     Page {txPage} of {totalPages || 1}
@@ -1253,9 +1736,11 @@ export function HistoryPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
                                       </svg>
                                     </button>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           );
                         })()}

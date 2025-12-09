@@ -356,16 +356,41 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
       console.error('Payment failed:', err);
       setPaymentStatus('failed');
 
+      // Extract user-friendly error message
+      let userMessage = 'Payment failed. Please try again.';
+
       // User rejected transaction
       if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
-        setPaymentError('Transaction rejected by user');
+        userMessage = 'Transaction rejected by user';
+      } else if (err.code === -32603 || err.message?.includes('-32603')) {
+        userMessage = 'Transaction failed. The token may not be supported or you may have insufficient balance.';
       } else if (err.message?.includes('insufficient funds')) {
-        setPaymentError('Insufficient funds for this transaction');
+        userMessage = 'Insufficient funds for this transaction';
       } else if (err.message?.includes('allowance')) {
-        setPaymentError('Token approval failed. Please try again.');
-      } else {
-        setPaymentError(err.message || 'Payment failed. Please try again.');
+        userMessage = 'Token approval failed. Please try again.';
+      } else if (err.message?.includes('could not coalesce')) {
+        userMessage = 'Transaction failed. Please check your token balance and try again.';
+      } else if (err.message?.includes('CALL_EXCEPTION')) {
+        userMessage = 'Contract call failed. The token may not be supported.';
+      } else if (err.message?.includes('UNKNOWN_ERROR')) {
+        userMessage = 'Transaction failed. Please try again or switch tokens.';
+      } else if (err.message) {
+        // Truncate long error messages
+        const msg = err.message;
+        if (msg.length > 100) {
+          // Try to extract just the main message before technical details
+          const colonIndex = msg.indexOf(':');
+          if (colonIndex > 0 && colonIndex < 50) {
+            userMessage = msg.substring(0, colonIndex);
+          } else {
+            userMessage = 'Payment failed. Please try again.';
+          }
+        } else {
+          userMessage = msg;
+        }
       }
+
+      setPaymentError(userMessage);
     }
   };
 
@@ -438,47 +463,48 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
             onClose={() => setShowReceipt(false)}
           />
         )}
-        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative">
-          {/* Background glow */}
+        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative py-8 px-4">
+          {/* Background glow - More visible */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-bnb-yellow/5 rounded-full blur-3xl"></div>
+            <div className="absolute top-10 left-0 w-72 sm:w-96 h-72 sm:h-96 bg-purple-700/20 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-10 right-0 w-72 sm:w-96 h-72 sm:h-96 bg-bnb-yellow/15 rounded-full blur-3xl"></div>
           </div>
 
-          <div className={`max-w-md mx-auto px-6 text-center relative z-10 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-            {/* Success Icon */}
-            <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className={`max-w-sm sm:max-w-md w-full text-center relative z-10 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+            {/* Success Icon - Smaller on mobile */}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
               </svg>
             </div>
 
-            <h1 className="text-3xl font-bold text-white mb-2">Subscription Activated!</h1>
-            <p className="text-gray-400 mb-2">{subscription.planName}</p>
-            <p className="text-purple-400 text-sm mb-8">{subscription.interval === 'monthly' ? 'Monthly' : 'Yearly'} billing</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Subscription Activated!</h1>
+            <p className="text-gray-400 text-sm mb-1">{subscription.planName}</p>
+            <p className="text-bnb-yellow text-xs mb-4 sm:mb-6">{subscription.interval === 'monthly' ? 'Monthly' : 'Yearly'} billing</p>
 
-            {/* Payment Details */}
-            <div className="card-shadow rounded-2xl p-6 mb-6">
-              <div className="flex items-center justify-center space-x-3 mb-4">
-                <span className="text-4xl font-bold text-green-500">{displayPaidAmount}</span>
+            {/* Payment Details - Compact card */}
+            <div className="card-shadow rounded-2xl p-4 sm:p-5 mb-4">
+              <div className="flex items-center justify-center space-x-2 mb-3">
                 <img
                   src={getTokenImagePath(displayPaidToken)}
                   alt={displayPaidToken}
-                  className="h-10 w-10 rounded-full"
+                  className="h-8 w-8 sm:h-10 sm:w-10 rounded-full"
                 />
+                <span className="text-3xl sm:text-4xl font-bold text-green-500">{displayPaidAmount}</span>
+                <span className="text-lg sm:text-xl text-gray-400">{displayPaidToken}</span>
               </div>
               {displayPaidToken !== settlementToken && (
                 <p className="text-gray-500 text-xs mb-2">
                   Subscription price: {paymentAmount} {getTokenDisplayName(settlementToken)}
                 </p>
               )}
-              <p className="text-gray-400 text-sm mb-4">Paid to {formatAddress(merchantAddress)}</p>
+              <p className="text-gray-400 text-xs sm:text-sm mb-3">Paid to {formatAddress(merchantAddress)}</p>
 
               <a
                 href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 text-purple-400 hover:text-purple-300 text-sm"
+                className="inline-flex items-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm"
               >
                 <span>View Transaction</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -486,18 +512,18 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                 </svg>
               </a>
 
-              {/* Subscription Link */}
-              <div className="mt-4 pt-4 border-t border-bnb-gray/30">
-                <p className="text-gray-500 text-xs mb-2">Subscription Link</p>
-                <div className="flex items-center space-x-2">
-                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-3 py-2 rounded-lg overflow-hidden text-ellipsis whitespace-nowrap">
-                    {window.location.href}
+              {/* Subscription Link - More compact */}
+              <div className="mt-3 pt-3 border-t border-bnb-gray/30">
+                <p className="text-gray-500 text-xs mb-1">Subscription Link</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-2 py-1.5 rounded-lg overflow-hidden text-ellipsis whitespace-nowrap min-w-0">
+                    {window.location.href.slice(0, 40)}...
                   </code>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.href);
                     }}
-                    className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500 text-purple-400 hover:text-white rounded-lg transition-all text-xs font-semibold flex-shrink-0"
+                    className="px-2 py-1.5 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow rounded-lg transition-all text-xs font-semibold flex-shrink-0 border border-bnb-yellow/30"
                   >
                     Copy
                   </button>
@@ -505,33 +531,33 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
               </div>
             </div>
 
-            {/* View Receipt Button */}
+            {/* View Receipt Button - Purple to Yellow gradient */}
             <button
               onClick={() => setShowReceipt(true)}
-              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-500 to-bnb-yellow hover:opacity-90 text-white font-bold py-4 px-6 rounded-xl transition-all mb-4"
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 text-white font-bold py-3 px-4 rounded-xl transition-all mb-3"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
               </svg>
-              <span>View Receipt</span>
+              <span className="text-sm sm:text-base">View Receipt</span>
             </button>
 
             <a
               href="/"
-              className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors text-sm"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
               </svg>
               <span>Back to Home</span>
             </a>
 
-            {/* Powered by Footer */}
-            <div className="mt-12">
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+            {/* Powered by Footer - Compact */}
+            <div className="mt-6 sm:mt-8">
+              <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
                 <span>Powered by</span>
-                <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                <div className="bg-bnb-gray/50 rounded-full px-3 py-1 border border-bnb-yellow/10">
+                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-4 w-auto opacity-90" />
                 </div>
               </div>
             </div>
@@ -809,8 +835,19 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
               {/* Pay Now Button Card */}
               <div className="card-shadow rounded-2xl p-6">
                 {paymentStatus === 'failed' && paymentError && (
-                  <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-red-400 text-sm text-center">{paymentError}</p>
+                  <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl overflow-hidden">
+                    <div className="flex items-start space-x-2">
+                      <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                      <p className="text-red-400 text-sm break-words overflow-hidden">{paymentError}</p>
+                    </div>
+                    <button
+                      onClick={() => { setPaymentError(null); setPaymentStatus('pending'); }}
+                      className="mt-3 w-full text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      Dismiss and try again
+                    </button>
                   </div>
                 )}
 
@@ -821,7 +858,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                       href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-purple-400 hover:text-purple-300 text-sm inline-flex items-center space-x-1"
+                      className="text-bnb-yellow hover:text-yellow-500 text-sm inline-flex items-center space-x-1"
                     >
                       <span>View Transaction</span>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -830,7 +867,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                     </a>
                     <button
                       onClick={() => setShowReceipt(true)}
-                      className="mt-3 w-full flex items-center justify-center space-x-2 bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg transition-all"
+                      className="mt-3 w-full flex items-center justify-center space-x-2 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow font-semibold py-2 px-4 rounded-lg transition-all border border-bnb-yellow/30"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -843,7 +880,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                 <button
                   onClick={handlePayNow}
                   disabled={paymentStatus === 'processing' || paymentStatus === 'paid'}
-                  className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-purple-500 to-bnb-yellow hover:opacity-90 disabled:opacity-50 text-white font-bold text-lg py-5 px-6 rounded-xl transition-all hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed shadow-lg"
+                  className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 disabled:opacity-50 text-white font-bold text-lg py-5 px-6 rounded-xl transition-all hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed shadow-lg"
                 >
                   {paymentStatus === 'processing' ? (
                     <>
@@ -1110,8 +1147,19 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
               {/* Pay Now Button */}
               <div className="mt-6 pt-6 border-t border-bnb-gray">
                 {paymentStatus === 'failed' && paymentError && (
-                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-red-400 text-sm text-center">{paymentError}</p>
+                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl overflow-hidden">
+                    <div className="flex items-start space-x-2">
+                      <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                      <p className="text-red-400 text-sm break-words overflow-hidden">{paymentError}</p>
+                    </div>
+                    <button
+                      onClick={() => { setPaymentError(null); setPaymentStatus('pending'); }}
+                      className="mt-2 w-full text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      Dismiss and try again
+                    </button>
                   </div>
                 )}
 
@@ -1122,7 +1170,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                       href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-purple-400 hover:text-purple-300 text-sm inline-flex items-center space-x-1"
+                      className="text-bnb-yellow hover:text-yellow-500 text-sm inline-flex items-center space-x-1"
                     >
                       <span>View Transaction</span>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1131,7 +1179,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                     </a>
                     <button
                       onClick={() => setShowReceipt(true)}
-                      className="mt-2 w-full flex items-center justify-center space-x-2 bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg transition-all"
+                      className="mt-2 w-full flex items-center justify-center space-x-2 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow font-semibold py-2 px-4 rounded-lg transition-all border border-bnb-yellow/30"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -1144,7 +1192,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                 <button
                   onClick={handlePayNow}
                   disabled={paymentStatus === 'processing' || paymentStatus === 'paid'}
-                  className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-purple-500 to-bnb-yellow hover:opacity-90 disabled:opacity-50 text-white font-bold text-lg py-4 px-6 rounded-xl transition-all hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 disabled:opacity-50 text-white font-bold text-lg py-4 px-6 rounded-xl transition-all hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed"
                 >
                   {paymentStatus === 'processing' ? (
                     <>

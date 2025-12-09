@@ -246,7 +246,7 @@ export function InvoicePayment({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 rounded-t-2xl text-white">
+        <div className="bg-gradient-to-r from-purple-700 to-bnb-yellow p-6 rounded-t-2xl text-white">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Invoice Payment</h2>
@@ -406,7 +406,7 @@ export function InvoicePayment({
               <button
                 onClick={handlePayWithPermit2}
                 disabled={loading || approving || requiresApproval || paymentStatus === 'success'}
-                className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
+                className="w-full px-6 py-4 bg-gradient-to-r from-purple-700 to-bnb-yellow text-white font-bold rounded-lg hover:from-purple-800 hover:to-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
               >
                 {loading
                   ? 'Processing...'

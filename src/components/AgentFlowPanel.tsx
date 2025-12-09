@@ -264,31 +264,31 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
         {/* Collapsible Content */}
         {isExpanded && (
           <div className="p-4 pt-0 space-y-4 border-t border-bnb-gray">
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-600 mt-4">
+            {/* Tabs - scrollable on mobile */}
+            <div className="flex gap-1 sm:gap-2 border-b border-gray-600 mt-4 overflow-x-auto pb-px -mx-4 px-4 sm:mx-0 sm:px-0">
               <button
                 onClick={() => setActiveTab('json')}
-                className={`px-4 py-2 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 py-2 font-semibold transition-colors whitespace-nowrap text-sm sm:text-base flex-shrink-0 ${
                   activeTab === 'json'
                     ? 'text-bnb-yellow border-b-2 border-bnb-yellow'
                     : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
-                JSON Payload
+                JSON
               </button>
               <button
                 onClick={() => setActiveTab('mcp')}
-                className={`px-4 py-2 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 py-2 font-semibold transition-colors whitespace-nowrap text-sm sm:text-base flex-shrink-0 ${
                   activeTab === 'mcp'
                     ? 'text-bnb-yellow border-b-2 border-bnb-yellow'
                     : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
-                MCP Calls
+                MCP
               </button>
               <button
                 onClick={() => setActiveTab('settlement')}
-                className={`px-4 py-2 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 py-2 font-semibold transition-colors whitespace-nowrap text-sm sm:text-base flex-shrink-0 ${
                   activeTab === 'settlement'
                     ? 'text-bnb-yellow border-b-2 border-bnb-yellow'
                     : 'text-gray-400 hover:text-gray-300'
@@ -298,7 +298,7 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
               </button>
               <button
                 onClick={() => setActiveTab('analytics')}
-                className={`px-4 py-2 font-semibold transition-colors ${
+                className={`px-3 sm:px-4 py-2 font-semibold transition-colors whitespace-nowrap text-sm sm:text-base flex-shrink-0 ${
                   activeTab === 'analytics'
                     ? 'text-bnb-yellow border-b-2 border-bnb-yellow'
                     : 'text-gray-400 hover:text-gray-300'
@@ -309,14 +309,14 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
             </div>
 
             {/* Tab Content */}
-            <div className="min-h-[300px]">
+            <div className="min-h-[300px] overflow-hidden">
               {activeTab === 'json' && (
-                <div>
-                  <h4 className="font-semibold text-white mb-3">JSON Payload</h4>
+                <div className="overflow-hidden">
+                  <h4 className="font-semibold text-white mb-3 text-sm sm:text-base">JSON Payload</h4>
                   {data ? (
                     <div className="space-y-4">
                       <div className="relative">
-                        <pre className="bg-bnb-dark border border-gray-700 rounded-lg p-4 overflow-x-auto text-sm text-gray-300">
+                        <pre className="bg-bnb-dark border border-gray-700 rounded-lg p-3 sm:p-4 overflow-x-auto text-xs sm:text-sm text-gray-300 max-w-full whitespace-pre-wrap break-all sm:whitespace-pre sm:break-normal">
                           {safeStringify(generateCleanPayload(data), 2)}
                         </pre>
                         <button
@@ -329,34 +329,34 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
 
                       {/* API Endpoints Section */}
                       <div className="mt-6">
-                        <h4 className="font-semibold text-white mb-3">BNBPay API Endpoints</h4>
+                        <h4 className="font-semibold text-white mb-3 text-sm sm:text-base">BNBPay API Endpoints</h4>
                         <div className="space-y-3">
                           {apiExamples.map((example, index) => (
-                            <div key={index} className="bg-bnb-dark border border-gray-700 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                            <div key={index} className="bg-bnb-dark border border-gray-700 rounded-lg p-3 sm:p-4 overflow-hidden">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <span className={`px-2 py-0.5 text-xs font-bold rounded flex-shrink-0 ${
                                     example.method === 'GET' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
                                   }`}>
                                     {example.method}
                                   </span>
-                                  <code className="text-sm font-mono text-gray-300">{example.endpoint}</code>
+                                  <code className="text-xs sm:text-sm font-mono text-gray-300 truncate">{example.endpoint}</code>
                                 </div>
                                 <button
                                   onClick={() => copyToClipboard(typeof example.payload === 'string' ? example.payload : safeStringify(example.payload, 2))}
-                                  className="text-xs text-gray-500 hover:text-bnb-yellow transition-colors"
+                                  className="text-xs text-gray-500 hover:text-bnb-yellow transition-colors flex-shrink-0 self-end sm:self-auto"
                                 >
                                   Copy
                                 </button>
                               </div>
                               <p className="text-xs text-gray-500 mb-2">{example.description}</p>
                               {typeof example.payload === 'object' && (
-                                <pre className="bg-bnb-gray/50 rounded p-2 text-xs overflow-x-auto max-h-32 text-gray-400">
+                                <pre className="bg-bnb-gray/50 rounded p-2 text-xs overflow-x-auto max-h-32 text-gray-400 whitespace-pre-wrap break-all sm:whitespace-pre sm:break-normal">
                                   {safeStringify(example.payload, 2)}
                                 </pre>
                               )}
                               {typeof example.payload === 'string' && (
-                                <code className="text-xs text-gray-400 bg-bnb-gray/50 px-2 py-1 rounded">{example.payload}</code>
+                                <code className="text-xs text-gray-400 bg-bnb-gray/50 px-2 py-1 rounded block overflow-x-auto whitespace-nowrap">{example.payload}</code>
                               )}
                             </div>
                           ))}
@@ -364,7 +364,7 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
                       </div>
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-center py-8">
+                    <p className="text-gray-500 text-center py-8 text-sm">
                       Create an invoice or subscription to see the JSON payload
                     </p>
                   )}
@@ -461,65 +461,65 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
               )}
 
               {activeTab === 'settlement' && (
-                <div>
-                  <h4 className="font-semibold text-white mb-3">Multi-Token Settlement</h4>
-                  <div className="bg-bnb-dark border border-gray-700 rounded-lg p-6 space-y-4">
+                <div className="overflow-hidden">
+                  <h4 className="font-semibold text-white mb-3 text-sm sm:text-base">Multi-Token Settlement</h4>
+                  <div className="bg-bnb-dark border border-gray-700 rounded-lg p-3 sm:p-6 space-y-4">
                     {/* Network Contracts Info */}
                     {currentNetwork && (
-                      <div className="p-4 bg-bnb-gray/50 border border-gray-700 rounded-lg">
-                        <h5 className="font-semibold text-white mb-3">Network Contracts ({currentNetwork.name})</h5>
-                        <div className="grid grid-cols-1 gap-2 text-xs font-mono">
-                          <div className="flex justify-between items-center">
+                      <div className="p-3 sm:p-4 bg-bnb-gray/50 border border-gray-700 rounded-lg overflow-hidden">
+                        <h5 className="font-semibold text-white mb-3 text-sm">Network Contracts ({currentNetwork.name})</h5>
+                        <div className="space-y-2 text-xs font-mono">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                             <span className="text-gray-500">Registry:</span>
                             <a
                               href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${currentNetwork.registry}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-bnb-yellow hover:text-yellow-400"
+                              className="text-bnb-yellow hover:text-yellow-400 truncate"
                             >
                               {currentNetwork.registry?.slice(0, 10)}...{currentNetwork.registry?.slice(-6)}
                             </a>
                           </div>
-                          <div className="flex justify-between items-center">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                             <span className="text-gray-500">Router:</span>
                             <a
                               href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${currentNetwork.router}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-bnb-yellow hover:text-yellow-400"
+                              className="text-bnb-yellow hover:text-yellow-400 truncate"
                             >
                               {currentNetwork.router?.slice(0, 10)}...{currentNetwork.router?.slice(-6)}
                             </a>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">SubscriptionManager:</span>
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                            <span className="text-gray-500">SubManager:</span>
                             <a
                               href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/0x45e1857002F4A91831ada123302ED739B9E7c467`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-bnb-yellow hover:text-yellow-400"
+                              className="text-bnb-yellow hover:text-yellow-400 truncate"
                             >
-                              0x45e18570...E7c467
+                              0x45e18...E7c467
                             </a>
                           </div>
-                          <div className="flex justify-between items-center">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                             <span className="text-gray-500">SessionStore:</span>
                             <a
                               href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${currentNetwork.sessionStore}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-bnb-yellow hover:text-yellow-400"
+                              className="text-bnb-yellow hover:text-yellow-400 truncate"
                             >
                               {currentNetwork.sessionStore?.slice(0, 10)}...{currentNetwork.sessionStore?.slice(-6)}
                             </a>
                           </div>
-                          <div className="flex justify-between items-center">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                             <span className="text-gray-500">Permit2:</span>
                             <a
                               href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${currentNetwork.permit2}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-bnb-yellow hover:text-yellow-400"
+                              className="text-bnb-yellow hover:text-yellow-400 truncate"
                             >
                               {currentNetwork.permit2?.slice(0, 10)}...{currentNetwork.permit2?.slice(-6)}
                             </a>
@@ -804,72 +804,72 @@ export function AgentFlowPanel({ data, walletAddress, network = 'testnet' }: Age
                     )}
 
                     {/* API Endpoints Reference */}
-                    <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                      <h5 className="font-semibold text-purple-400 mb-3">BNBPay API Endpoints</h5>
+                    <div className="p-3 sm:p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg overflow-hidden">
+                      <h5 className="font-semibold text-purple-400 mb-3 text-sm">BNBPay API Endpoints</h5>
 
                       {/* Invoice Endpoints */}
                       <p className="text-xs text-purple-300 font-semibold mb-2">Invoices (Gas-Free)</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">POST</span>
-                          <code className="text-gray-400">/invoices</code>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded flex-shrink-0">POST</span>
+                          <code className="text-gray-400 truncate">/invoices</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/invoices/{'{id}'}</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/invoices/{'{id}'}</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/invoices/{'{id}'}/status</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/invoices/{'{id}'}/status</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">POST</span>
-                          <code className="text-gray-400">/invoices/{'{id}'}/cancel</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded flex-shrink-0">POST</span>
+                          <code className="text-gray-400 truncate">/invoices/{'{id}'}/cancel</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">SSE</span>
-                          <code className="text-gray-400">/invoices/{'{id}'}/stream-sse</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded flex-shrink-0">SSE</span>
+                          <code className="text-gray-400 truncate">/invoices/.../stream-sse</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">WS</span>
-                          <code className="text-gray-400">/invoices/{'{id}'}/stream</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded flex-shrink-0">WS</span>
+                          <code className="text-gray-400 truncate">/invoices/{'{id}'}/stream</code>
                         </div>
                       </div>
 
                       {/* Payment Endpoints */}
                       <p className="text-xs text-purple-300 font-semibold mb-2">Payments & Sessions</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/payments</code>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/payments</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/sessions</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/sessions</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/tokens</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/tokens</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/networks</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/networks</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">POST</span>
-                          <code className="text-gray-400">/relay/payment</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded flex-shrink-0">POST</span>
+                          <code className="text-gray-400 truncate">/relay/payment</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">POST</span>
-                          <code className="text-gray-400">/relay/session/open</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded flex-shrink-0">POST</span>
+                          <code className="text-gray-400 truncate">/relay/session/open</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">GET</span>
-                          <code className="text-gray-400">/can-pay</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded flex-shrink-0">GET</span>
+                          <code className="text-gray-400 truncate">/can-pay</code>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">POST</span>
-                          <code className="text-gray-400">/payments/build-intent</code>
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded flex-shrink-0">POST</span>
+                          <code className="text-gray-400 truncate">/payments/build-intent</code>
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 mt-3">

@@ -41,8 +41,8 @@ export interface InvoiceData {
   x402FlexHeaders?: Record<string, string>;
   resourceId?: string;
   createdAt?: number;
-  // Payment status
-  status?: 'pending' | 'paid' | 'cancelled' | 'expired';
+  // Payment status (API uses 'canceled', UI may use 'cancelled')
+  status?: 'pending' | 'paid' | 'cancelled' | 'canceled' | 'expired';
   paidAt?: number;
   paidBy?: string;
   paidToken?: string;

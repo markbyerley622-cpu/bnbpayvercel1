@@ -168,7 +168,7 @@ export function SubscriptionModal({ subscription, onClose }: SubscriptionModalPr
                       <div className="font-bold text-purple-900">
                         {option.tokenAmount} {option.token}
                       </div>
-                      <div className="text-xs text-purple-600">
+                      <div className="text-xs text-purple-700">
                         per {subscription.interval === 'monthly' ? 'month' : 'year'}
                       </div>
                     </div>
@@ -177,7 +177,7 @@ export function SubscriptionModal({ subscription, onClose }: SubscriptionModalPr
               </div>
             ) : null}
 
-            <div className="text-xs text-purple-600 border-t border-purple-200 pt-2 space-y-1">
+            <div className="text-xs text-purple-700 border-t border-purple-200 pt-2 space-y-1">
               <div>• Automatic recurring charges with retry logic</div>
               <div>• Dunning management for failed payments</div>
               <div>• Direct settlement to {subscription.settlement}</div>

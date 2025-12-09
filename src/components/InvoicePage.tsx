@@ -858,16 +858,41 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       console.error('Payment failed:', err);
       setPaymentStatus('failed');
 
+      // Extract user-friendly error message
+      let userMessage = 'Payment failed. Please try again.';
+
       // User rejected transaction
       if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
-        setError('Transaction rejected by user');
+        userMessage = 'Transaction rejected by user';
+      } else if (err.code === -32603 || err.message?.includes('-32603')) {
+        userMessage = 'Transaction failed. The token may not be supported or you may have insufficient balance.';
       } else if (err.message?.includes('insufficient funds')) {
-        setError('Insufficient funds for this transaction');
+        userMessage = 'Insufficient funds for this transaction';
       } else if (err.message?.includes('allowance')) {
-        setError('Token approval failed. Please try again.');
-      } else {
-        setError(err.message || 'Payment failed. Please try again.');
+        userMessage = 'Token approval failed. Please try again.';
+      } else if (err.message?.includes('could not coalesce')) {
+        userMessage = 'Transaction failed. Please check your token balance and try again.';
+      } else if (err.message?.includes('CALL_EXCEPTION')) {
+        userMessage = 'Contract call failed. The token may not be supported.';
+      } else if (err.message?.includes('UNKNOWN_ERROR')) {
+        userMessage = 'Transaction failed. Please try again or switch tokens.';
+      } else if (err.message) {
+        // Truncate long error messages
+        const msg = err.message;
+        if (msg.length > 100) {
+          // Try to extract just the main message before technical details
+          const colonIndex = msg.indexOf(':');
+          if (colonIndex > 0 && colonIndex < 50) {
+            userMessage = msg.substring(0, colonIndex);
+          } else {
+            userMessage = 'Payment failed. Please try again.';
+          }
+        } else {
+          userMessage = msg;
+        }
       }
+
+      setError(userMessage);
     }
   };
 
@@ -1304,34 +1329,50 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                   {allowedTokens.map((token: string) => {
                     const amount = getPaymentAmountInToken(token as Token);
                     const isSelected = selectedPayToken === token;
+                    // In gasless mode, BNB is disabled (native tokens can't be gasless)
+                    const isDisabledInGaslessMode = paymentMode === 'gasless' && token === 'BNB';
                     return (
                       <button
                         key={token}
-                        onClick={() => setSelectedPayToken(token as Token)}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          isSelected
-                            ? 'border-bnb-yellow bg-bnb-yellow/10'
-                            : 'border-bnb-gray bg-bnb-gray/20 hover:border-bnb-yellow/50'
+                        onClick={() => {
+                          if (!isDisabledInGaslessMode) {
+                            setSelectedPayToken(token as Token);
+                          }
+                        }}
+                        disabled={isDisabledInGaslessMode}
+                        className={`p-4 rounded-xl border-2 transition-all relative ${
+                          isDisabledInGaslessMode
+                            ? 'border-gray-600/50 bg-gray-800/30 opacity-40 cursor-not-allowed'
+                            : isSelected
+                              ? 'border-bnb-yellow bg-bnb-yellow/10'
+                              : 'border-bnb-gray bg-bnb-gray/20 hover:border-bnb-yellow/50'
                         }`}
+                        title={isDisabledInGaslessMode ? 'BNB requires gas - switch to "Pay with Gas" mode' : `Pay with ${token}`}
                       >
                         <div className="flex items-center space-x-3">
                           <img
                             src={getTokenImagePath(token)}
                             alt={token}
-                            className="h-8 w-8 rounded-full"
+                            className={`h-8 w-8 rounded-full ${isDisabledInGaslessMode ? 'grayscale opacity-50' : ''}`}
                           />
                           <div className="text-left">
-                            <p className={`font-bold ${isSelected ? 'text-bnb-yellow' : 'text-white'}`}>
+                            <p className={`font-bold ${isDisabledInGaslessMode ? 'text-gray-500' : isSelected ? 'text-bnb-yellow' : 'text-white'}`}>
                               {amount}
                             </p>
-                            <p className="text-gray-400 text-xs">{token}</p>
+                            <p className={`text-xs ${isDisabledInGaslessMode ? 'text-gray-600' : 'text-gray-400'}`}>{token}</p>
                           </div>
                         </div>
-                        {isSelected && (
+                        {isSelected && !isDisabledInGaslessMode && (
                           <div className="mt-2 flex items-center justify-center">
                             <svg className="w-4 h-4 text-bnb-yellow" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path>
                             </svg>
+                          </div>
+                        )}
+                        {/* Gasless incompatible badge for BNB */}
+                        {isDisabledInGaslessMode && (
+                          <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-[10px] text-gray-400 font-medium">
+                            Gas Only
                           </div>
                         )}
                       </button>
@@ -1392,20 +1433,22 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                     <button
                       onClick={() => setPaymentMode('gas')}
                       disabled={!walletAddress}
-                      className={`p-4 rounded-xl border-2 transition-all ${
+                      className={`p-4 rounded-xl border-2 transition-all relative ${
                         paymentMode === 'gas'
                           ? 'border-bnb-yellow bg-bnb-yellow/10'
-                          : 'border-bnb-gray bg-bnb-gray/20 hover:border-bnb-yellow/50'
+                          : paymentMode === 'gasless'
+                            ? 'border-gray-600/50 bg-gray-800/30 opacity-50'
+                            : 'border-bnb-gray bg-bnb-gray/20 hover:border-bnb-yellow/50'
                       } ${!walletAddress ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="flex flex-col items-center">
-                        <svg className={`w-8 h-8 mb-2 ${paymentMode === 'gas' ? 'text-bnb-yellow' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-8 h-8 mb-2 ${paymentMode === 'gas' ? 'text-bnb-yellow' : paymentMode === 'gasless' ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a2 2 0 01-2-2V6a2 2 0 012-2h6a2 2 0 012 2v2z"></path>
                         </svg>
-                        <p className={`font-bold text-sm ${paymentMode === 'gas' ? 'text-bnb-yellow' : 'text-white'}`}>
+                        <p className={`font-bold text-sm ${paymentMode === 'gas' ? 'text-bnb-yellow' : paymentMode === 'gasless' ? 'text-gray-500' : 'text-white'}`}>
                           Pay with Gas
                         </p>
-                        <p className="text-gray-400 text-xs mt-1">You pay gas</p>
+                        <p className={`text-xs mt-1 ${paymentMode === 'gasless' ? 'text-gray-600' : 'text-gray-400'}`}>You pay gas</p>
                       </div>
                       {paymentMode === 'gas' && (
                         <div className="mt-2 flex items-center justify-center">
@@ -1420,7 +1463,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                     <button
                       onClick={() => setPaymentMode('gasless')}
                       disabled={!walletAddress || (!supportsPermit && !permit2Approved)}
-                      className={`p-4 rounded-xl border-2 transition-all ${
+                      className={`p-4 rounded-xl border-2 transition-all relative ${
                         paymentMode === 'gasless'
                           ? 'border-green-500 bg-green-500/10'
                           : 'border-bnb-gray bg-bnb-gray/20 hover:border-green-500/50'
@@ -1435,6 +1478,11 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                           Gasless
                         </p>
                         <p className="text-gray-400 text-xs mt-1">Relayer pays gas</p>
+                        {(supportsEip3009 || supportsEip2612) && (
+                          <p className="text-green-500/70 text-[10px] mt-0.5">
+                            {supportsEip3009 ? 'EIP-3009' : 'EIP-2612'}
+                          </p>
+                        )}
                       </div>
                       {paymentMode === 'gasless' && (
                         <div className="mt-2 flex items-center justify-center">
@@ -1445,6 +1493,20 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                       )}
                     </button>
                   </div>
+
+                  {/* Gasless mode info banner */}
+                  {paymentMode === 'gasless' && (
+                    <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                      <div className="flex items-start space-x-2">
+                        <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <p className="text-green-400 text-xs">
+                          <strong>Gasless mode active:</strong> Only ERC20 tokens with {supportsEip3009 ? 'EIP-3009 (TransferWithAuthorization)' : supportsEip2612 ? 'EIP-2612 (Permit)' : 'Permit2'} support are available. BNB requires gas and is disabled.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Gasless info/warnings */}
                   {walletAddress && !supportsPermit && !permit2Approved && (
@@ -1601,8 +1663,19 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
               {/* Pay Button Card */}
               <div className="card-shadow rounded-2xl p-6">
                 {paymentStatus === 'failed' && error && (
-                  <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-red-400 text-sm text-center">{error}</p>
+                  <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl overflow-hidden">
+                    <div className="flex items-start space-x-2">
+                      <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                      <p className="text-red-400 text-sm break-words overflow-hidden">{error}</p>
+                    </div>
+                    <button
+                      onClick={() => { setError(null); setPaymentStatus('pending'); }}
+                      className="mt-3 w-full text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      Dismiss and try again
+                    </button>
                   </div>
                 )}
 

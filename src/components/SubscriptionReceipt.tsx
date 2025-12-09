@@ -107,10 +107,10 @@ export function SubscriptionReceipt({
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // Header section with purple gradient for subscriptions
+    // Header section with dark purple to BNB yellow gradient (matching invoice style)
     const headerGradient = ctx.createLinearGradient(0, 0, width, 0);
-    headerGradient.addColorStop(0, '#8B5CF6');
-    headerGradient.addColorStop(1, '#F0B90B');
+    headerGradient.addColorStop(0, '#6D28D9'); // Purple-700 (no pink)
+    headerGradient.addColorStop(1, '#F0B90B'); // BNB Yellow
     ctx.fillStyle = headerGradient;
     roundRect(ctx, 0, 0, width, 140, 0);
     ctx.fill();
@@ -178,8 +178,8 @@ export function SubscriptionReceipt({
 
     currentY += 30;
 
-    // Plan name
-    ctx.fillStyle = '#8B5CF6';
+    // Plan name - Purple-700 (no pink)
+    ctx.fillStyle = '#6D28D9';
     ctx.font = '18px system-ui, -apple-system, sans-serif';
     ctx.fillText(planName, width / 2, currentY);
 
@@ -279,11 +279,11 @@ export function SubscriptionReceipt({
     ctx.fillText('TRANSACTION HASH', leftMargin - 25, currentY);
     currentY += 20;
 
-    // Purple box for tx hash (subscription style)
-    ctx.fillStyle = '#F3E8FF';
+    // Yellow box for tx hash (matching BNB branding)
+    ctx.fillStyle = '#FEF9E7'; // Light yellow background
     roundRect(ctx, 50, currentY, width - 100, 50, 8);
     ctx.fill();
-    ctx.strokeStyle = '#8B5CF6';
+    ctx.strokeStyle = '#F0B90B'; // BNB Yellow border
     ctx.lineWidth = 2;
     roundRect(ctx, 50, currentY, width - 100, 50, 8);
     ctx.stroke();
@@ -414,22 +414,22 @@ export function SubscriptionReceipt({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-bnb-yellow p-4 sm:p-6 rounded-t-2xl">
-          <div className="flex justify-center mb-3 sm:mb-4">
-            <img src="/bnbpay-logo.png" alt="BNBPay" className="h-8 sm:h-12" />
-          </div>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[98vh] sm:max-h-[90vh] overflow-hidden shadow-2xl flex flex-col my-auto">
+        {/* Header - Purple to Yellow gradient */}
+        <div className="bg-gradient-to-r from-purple-700 to-bnb-yellow p-3 sm:p-5 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">Subscription Activated!</h2>
-              <p className="text-white/80 mt-1 text-xs sm:text-sm truncate">Receipt ID: {subscriptionId.slice(0, 8)}...{subscriptionId.slice(-4)}</p>
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <img src="/10.png" alt="BNBPay" className="h-8 sm:h-10 flex-shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-white truncate">Subscription Activated!</h2>
+                <p className="text-white/70 text-xs truncate">ID: {subscriptionId.slice(0, 8)}...{subscriptionId.slice(-4)}</p>
+              </div>
             </div>
             {onClose && (
               <button
                 onClick={onClose}
-                className="text-white hover:text-gray-300 text-2xl font-bold w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0 ml-2"
+                className="text-white/80 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors flex-shrink-0 ml-2"
               >
                 ×
               </button>
@@ -438,31 +438,28 @@ export function SubscriptionReceipt({
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 bg-gray-50">
-          {/* Success Badge */}
-          <div className="flex items-center justify-center">
-            <div className="bg-green-100 rounded-full p-3 sm:p-4">
-              <svg className="w-8 h-8 sm:w-12 sm:h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="p-3 sm:p-5 space-y-3 sm:space-y-4 overflow-y-auto flex-1 bg-gray-50">
+          {/* Success Badge + Amount (Combined for space) */}
+          <div className="flex items-center justify-center space-x-3 py-2">
+            <div className="bg-green-100 rounded-full p-2 sm:p-3 flex-shrink-0">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path>
               </svg>
             </div>
-          </div>
-
-          {/* Plan & Amount Display */}
-          <div className="text-center">
-            <p className="text-purple-600 font-semibold text-sm sm:text-base mb-2">{planName}</p>
-            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Amount Paid</p>
-            <div className="flex items-center justify-center space-x-2 sm:space-x-3">
-              <img
-                src={getTokenLogo(displayPaidToken)}
-                alt={displayPaidToken}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/2.png'; }}
-              />
-              <span className="text-3xl sm:text-4xl font-bold text-bnb-dark">{displayPaidAmount}</span>
-              <span className="text-xl sm:text-2xl font-semibold text-gray-600">{displayPaidToken}</span>
+            <div className="text-left">
+              <p className="text-purple-700 font-semibold text-sm">{planName}</p>
+              <div className="flex items-center space-x-2">
+                <img
+                  src={getTokenLogo(displayPaidToken)}
+                  alt={displayPaidToken}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full"
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/2.png'; }}
+                />
+                <span className="text-2xl sm:text-3xl font-bold text-bnb-dark">{displayPaidAmount}</span>
+                <span className="text-lg sm:text-xl font-semibold text-gray-600">{displayPaidToken}</span>
+              </div>
+              <p className="text-gray-500 text-xs">per {interval === 'monthly' ? 'month' : 'year'}</p>
             </div>
-            <p className="text-gray-500 text-sm mt-1">per {interval === 'monthly' ? 'month' : 'year'}</p>
           </div>
 
           {/* Payment Details */}
@@ -491,7 +488,7 @@ export function SubscriptionReceipt({
                   href={`${explorerUrl}/address/${merchantAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-600 hover:text-purple-700"
+                  className="text-bnb-yellow hover:text-yellow-400"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -510,28 +507,28 @@ export function SubscriptionReceipt({
           </div>
 
           {/* Transaction Link - Highlighted */}
-          <div className="bg-purple-50 border-2 border-purple-500 rounded-xl p-3 sm:p-4">
-            <div className="flex items-center gap-2 mb-2 sm:mb-3">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-bnb-yellow/10 border-2 border-bnb-yellow/30 rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 text-bnb-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
-              <span className="text-bnb-dark font-bold text-sm sm:text-base">Transaction Confirmed</span>
+              <span className="text-bnb-dark font-bold text-sm">Transaction Confirmed</span>
             </div>
-            <div className="bg-white rounded-lg p-2 sm:p-3 border border-purple-200">
+            <div className="bg-white rounded-lg p-2 border border-gray-200">
               <p className="text-gray-500 text-xs mb-1">Transaction Hash</p>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <code className="text-bnb-dark font-mono text-xs break-all flex-1">
-                  {txHash}
+              <div className="flex items-center gap-2">
+                <code className="text-bnb-dark font-mono text-xs break-all flex-1 truncate">
+                  {txHash.slice(0, 20)}...{txHash.slice(-10)}
                 </code>
                 <button
                   onClick={() => copyToClipboard(txHash, setTxCopied)}
-                  className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all flex-shrink-0 w-full sm:w-auto ${
+                  className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
                     txCopied
                       ? 'bg-green-500 text-white'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-bnb-dark text-bnb-yellow hover:bg-gray-800'
                   }`}
                 >
-                  {txCopied ? 'Copied!' : 'Copy'}
+                  {txCopied ? '✓' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -539,66 +536,65 @@ export function SubscriptionReceipt({
               href={txLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 sm:mt-3 flex items-center justify-center space-x-2 w-full py-2 sm:py-2.5 bg-bnb-dark text-purple-400 font-semibold rounded-lg hover:bg-gray-800 transition-colors text-sm"
+              className="mt-2 flex items-center justify-center space-x-2 w-full py-2 bg-bnb-dark text-bnb-yellow font-semibold rounded-lg hover:bg-gray-800 transition-colors text-xs"
             >
               <span>View on BscScan</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
               </svg>
             </a>
           </div>
 
-          {/* Download Receipt */}
+          {/* Download Receipt - Purple to Yellow gradient */}
           <button
             onClick={downloadReceipt}
-            className="w-full flex items-center justify-center space-x-2 sm:space-x-3 bg-gradient-to-r from-purple-600 to-bnb-yellow hover:opacity-90 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all hover:scale-[1.02]"
+            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 text-white font-bold py-3 px-4 rounded-xl transition-all"
           >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
             </svg>
-            <span className="text-sm sm:text-base">Download Receipt</span>
-            <img src="/2.png" alt="Coin" className="h-6 w-6 sm:h-8 sm:w-8" />
+            <span className="text-sm">Download Receipt</span>
           </button>
 
-          {/* Email Section */}
-          <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
-            <p className="text-gray-600 text-xs sm:text-sm mb-2 sm:mb-3 text-center font-medium">Or send receipt to your email</p>
+          {/* Email Section - Compact */}
+          <div className="bg-white rounded-xl p-3 border border-gray-200">
+            <p className="text-gray-600 text-xs mb-2 text-center font-medium">Or send receipt to your email</p>
             {emailSent ? (
-              <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 rounded-xl p-2 sm:p-3">
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-center space-x-2 text-green-600 bg-green-50 rounded-lg p-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                 </svg>
-                <span className="font-semibold text-sm">Receipt sent to your email!</span>
+                <span className="font-semibold text-sm">Sent!</span>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex gap-2">
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 text-gray-800 placeholder-gray-400 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-sm"
+                  className="flex-1 px-3 py-2 border border-gray-300 text-gray-800 placeholder-gray-400 rounded-lg focus:outline-none focus:border-bnb-yellow text-sm min-w-0"
                 />
                 <button
                   onClick={sendEmailReceipt}
                   disabled={emailSending}
-                  className="px-4 sm:px-5 py-2.5 sm:py-3 bg-bnb-dark hover:bg-gray-800 text-white font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+                  className="px-3 py-2 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center space-x-1 flex-shrink-0"
                 >
                   {emailSending ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-bnb-yellow border-t-transparent rounded-full animate-spin"></div>
                   ) : (
                     <>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                       </svg>
-                      <span className="text-sm">Send</span>
+                      <span className="text-sm hidden sm:inline">Send</span>
                     </>
                   )}
                 </button>
               </div>
             )}
             {emailError && (
-              <p className="text-red-500 text-xs sm:text-sm mt-2 text-center">{emailError}</p>
+              <p className="text-red-500 text-xs mt-2 text-center">{emailError}</p>
             )}
           </div>
 
@@ -606,18 +602,18 @@ export function SubscriptionReceipt({
           {onClose && (
             <button
               onClick={onClose}
-              className="w-full py-2.5 sm:py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors text-sm"
+              className="w-full py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors text-sm"
             >
               Close
             </button>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-100 rounded-b-2xl flex-shrink-0 border-t border-gray-200">
-          <div className="flex items-center justify-center flex-wrap gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500">
+        {/* Footer - Compact */}
+        <div className="px-3 py-2 bg-gray-100 flex-shrink-0 border-t border-gray-200">
+          <div className="flex items-center justify-center flex-wrap gap-1 text-xs text-gray-500">
             <span>Powered by</span>
-            <img src="/pepaylabs.png" alt="PePay" className="h-4 sm:h-5 rounded" />
+            <img src="/pepaylabs.png" alt="PePay" className="h-4 rounded" />
             <span>•</span>
             <strong className="text-bnb-dark">BNBPay</strong>
             <span>•</span>

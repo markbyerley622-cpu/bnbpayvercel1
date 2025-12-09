@@ -21,7 +21,7 @@ export function Header({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="bg-bnb-dark/95 backdrop-blur-sm border-b border-bnb-gray py-4 px-4 md:px-6 sticky top-0 z-[200] animate-fade-in">
+    <header className="bg-bnb-dark/80 backdrop-blur-md border-b border-bnb-yellow/10 py-4 px-4 md:px-6 sticky top-0 z-[200] animate-fade-in">
       <div className="max-w-7xl mx-auto">
         {/* Desktop Header */}
         <div className="flex items-center justify-between">

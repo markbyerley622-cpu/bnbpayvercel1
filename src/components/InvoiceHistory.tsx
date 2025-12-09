@@ -217,7 +217,7 @@ export function InvoiceHistory({
                           e.stopPropagation();
                           onPayInvoice?.(invoice);
                         }}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-700 to-bnb-yellow text-white font-semibold rounded-lg hover:from-purple-800 hover:to-yellow-500 transition-all"
                       >
                         Pay Now
                       </button>

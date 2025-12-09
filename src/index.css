@@ -152,7 +152,7 @@ body {
     z-index: 2;
 }
 
-/* Background Glow Effects */
+/* Background Glow Effects - Very Prominent */
 .glow-background {
     position: fixed;
     top: 0;
@@ -160,60 +160,75 @@ body {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 0;
-    overflow: hidden;
+    z-index: 1;
+    overflow: visible;
 }
 
 .glow-orb {
     position: absolute;
     border-radius: 50%;
-    filter: blur(80px);
-    animation: glow-pulse 4s ease-in-out infinite;
+    filter: blur(100px);
+    animation: glow-pulse 6s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
+/* Top-left BNB Yellow glow - VERY VISIBLE */
 .glow-orb-1 {
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(240, 185, 11, 0.15) 0%, transparent 70%);
+    width: 900px;
+    height: 900px;
+    background: radial-gradient(circle, rgba(240, 185, 11, 0.6) 0%, rgba(240, 185, 11, 0.35) 30%, rgba(240, 185, 11, 0.15) 50%, transparent 70%);
     top: -200px;
     left: -200px;
     animation-delay: 0s;
 }
 
+/* Right side purple glow */
 .glow-orb-2 {
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(118, 75, 162, 0.1) 0%, transparent 70%);
-    top: 30%;
-    right: -150px;
-    animation-delay: 1s;
-}
-
-.glow-orb-3 {
     width: 700px;
     height: 700px;
-    background: radial-gradient(circle, rgba(240, 185, 11, 0.1) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(118, 75, 162, 0.45) 0%, rgba(118, 75, 162, 0.2) 40%, transparent 70%);
+    top: 15%;
+    right: -150px;
+    animation-delay: 1.5s;
+}
+
+/* Bottom center BNB Yellow glow */
+.glow-orb-3 {
+    width: 1000px;
+    height: 1000px;
+    background: radial-gradient(circle, rgba(240, 185, 11, 0.5) 0%, rgba(240, 185, 11, 0.25) 30%, rgba(240, 185, 11, 0.1) 50%, transparent 70%);
     bottom: -300px;
-    left: 30%;
+    left: 20%;
+    animation-delay: 3s;
+}
+
+/* Left center blue accent glow */
+.glow-orb-4 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(102, 126, 234, 0.35) 0%, rgba(102, 126, 234, 0.15) 40%, transparent 70%);
+    top: 40%;
+    left: -100px;
     animation-delay: 2s;
 }
 
-.glow-orb-4 {
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, rgba(102, 126, 234, 0.08) 0%, transparent 70%);
-    top: 50%;
-    left: 10%;
-    animation-delay: 1.5s;
+/* Extra glow orb for top-right corner */
+.glow-orb-5 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(240, 185, 11, 0.4) 0%, rgba(240, 185, 11, 0.15) 50%, transparent 70%);
+    top: -100px;
+    right: 10%;
+    animation-delay: 0.5s;
 }
 
 @keyframes glow-pulse {
     0%, 100% {
-        opacity: 0.6;
+        opacity: 1;
         transform: scale(1);
     }
     50% {
-        opacity: 1;
+        opacity: 0.85;
         transform: scale(1.1);
     }
 }
@@ -300,6 +315,50 @@ button, .btn-glow {
   }
   .particle:nth-child(n+11) {
     display: none;
+  }
+
+  /* Reduce glow effects on mobile for performance */
+  .glow-orb {
+    opacity: 0.7;
+    filter: blur(80px);
+  }
+
+  /* Ensure proper touch targets */
+  button, a, input[type="button"], input[type="submit"] {
+    min-height: 44px;
+  }
+
+  /* Improve table scrolling */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce card transform on mobile for smoother scrolling */
+  .card-shadow:hover {
+    transform: none;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  /* Simplify pagination on very small screens */
+  .pagination-numbers .page-btn:not(.active):not(:first-child):not(:last-child) {
+    display: none;
+  }
+
+  /* Stack search and filter controls */
+  .search-filter-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Ensure text doesn't overflow */
+  .truncate-mobile {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
