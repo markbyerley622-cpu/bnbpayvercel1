@@ -18,7 +18,13 @@
       "Bash(node -e:*)",
       "WebFetch(domain:api.bnbpay.org)",
       "Bash(dir:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(tree:*)",
+      "Bash(del \"C:\\Users\\markb\\Desktop\\INVOICESUBSCRIPTION-UI\\receipt-history.html\")",
+      "Bash(del \"C:\\Users\\markb\\Desktop\\INVOICESUBSCRIPTION-UI\\public\\receipt-history.html\")",
+      "Bash(del \"C:\\Users\\markb\\Desktop\\INVOICESUBSCRIPTION-UI\\src\\receipt-history.html\")",
+      "WebFetch(domain:testnet.bscscan.com)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

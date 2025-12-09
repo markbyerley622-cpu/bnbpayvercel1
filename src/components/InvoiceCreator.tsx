@@ -5,6 +5,8 @@ import { isMetaMaskInstalled, type NetworkType } from '../lib/web3';
 import { getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
 import { createInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { ethers } from 'ethers';
+import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
+import { AlertBanner } from './ErrorUI';
 
 interface InvoiceCreatorProps {
   network: NetworkType;
@@ -33,12 +35,91 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
   const [loading, setLoading] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState<InvoiceData | null>(null);
 
+  // Error state - structured for safe display
+  const [error, setError] = useState<{
+    code: ErrorCode;
+    message: string;
+    referenceId: string;
+    showRetry: boolean;
+  } | null>(null);
+
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Validate form fields
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.description.trim()) {
+      errors.description = 'Description is required';
+    }
+
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      errors.amount = 'Please enter a valid amount';
+    }
+
+    // Validate payee wallet if provided
+    if (formData.payeeWalletAddress && !/^0x[a-fA-F0-9]{40}$/.test(formData.payeeWalletAddress)) {
+      errors.payeeWalletAddress = 'Invalid wallet address format';
+    }
+
+    // Validate emails if provided
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.merchantEmail && !emailRegex.test(formData.merchantEmail)) {
+      errors.merchantEmail = 'Invalid email format';
+    }
+    if (formData.payerEmail && !emailRegex.test(formData.payerEmail)) {
+      errors.payerEmail = 'Invalid email format';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle safe error display - NEVER expose internal details
+  const handleError = (err: unknown, context?: Record<string, unknown>) => {
+    const errorCode = mapToErrorCode(err);
+    const referenceId = logInternalError(errorCode, err, context);
+
+    // Determine if retry is appropriate
+    const nonRetryableCodes = [
+      ErrorCode.VALIDATION_ERROR,
+      ErrorCode.INVOICE_VALIDATION_FAILED,
+      ErrorCode.INVALID_INVOICE_AMOUNT,
+      ErrorCode.INVALID_MERCHANT_ADDRESS,
+    ];
+
+    setError({
+      code: errorCode,
+      message: getSafeMessage(errorCode),
+      referenceId,
+      showRetry: !nonRetryableCodes.includes(errorCode),
+    });
+  };
+
+  // Clear error state
+  const clearError = () => {
+    setError(null);
+    setFieldErrors({});
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
+
+    // Validate form first
+    if (!validateForm()) {
+      return;
+    }
 
     // Check if MetaMask is installed
     if (!isMetaMaskInstalled()) {
-      alert('MetaMask is not installed. Please install MetaMask to create invoices.');
+      setError({
+        code: ErrorCode.WALLET_NOT_CONNECTED,
+        message: 'Please install MetaMask to create invoices.',
+        referenceId: generateReferenceId(),
+        showRetry: false,
+      });
       return;
     }
 
@@ -211,22 +292,13 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
       if (onInvoiceCreated) {
         onInvoiceCreated(finalInvoice);
       }
-    } catch (error: any) {
-      console.error('Failed to create invoice:', error);
-      console.error('Error details:', error?.details);
-      // Show more detailed error message - check for validation errors
-      let errorMessage = 'Failed to create invoice. Please try again.';
-      if (error?.details) {
-        // API validation error
-        if (typeof error.details === 'object') {
-          errorMessage = JSON.stringify(error.details, null, 2);
-        } else {
-          errorMessage = String(error.details);
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      alert(`Failed to create invoice:\n${errorMessage}`);
+    } catch (err: unknown) {
+      // Safe error handling - NEVER expose internal details to UI
+      handleError(err, {
+        action: 'createInvoice',
+        network,
+        tokenSelected: formData.token,
+      });
     } finally {
       setLoading(false);
     }
@@ -242,6 +314,21 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Error Banner - bounded display */}
+        {error && (
+          <AlertBanner
+            message={error.message}
+            type="error"
+            referenceId={error.referenceId}
+            showRetry={error.showRetry}
+            onRetry={() => {
+              clearError();
+              handleSubmit(new Event('submit') as unknown as React.FormEvent);
+            }}
+            onDismiss={clearError}
+          />
+        )}
+
         <div className="form-group">
           <label className="block mb-2 text-gray-300 font-semibold text-sm">Merchant / Business Name</label>
           <input
@@ -263,8 +350,13 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
               value={formData.merchantEmail}
               onChange={handleChange}
               placeholder="merchant@example.com"
-              className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors text-sm"
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors text-sm ${
+                fieldErrors.merchantEmail ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+              }`}
             />
+            {fieldErrors.merchantEmail && (
+              <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.merchantEmail}</p>
+            )}
           </div>
           <div className="form-group">
             <label className="block mb-2 text-gray-300 font-semibold text-sm">Payer Email (Optional)</label>
@@ -274,8 +366,13 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
               value={formData.payerEmail}
               onChange={handleChange}
               placeholder="payer@example.com"
-              className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors text-sm"
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors text-sm ${
+                fieldErrors.payerEmail ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+              }`}
             />
+            {fieldErrors.payerEmail && (
+              <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.payerEmail}</p>
+            )}
           </div>
         </div>
         <p className="text-xs text-gray-400 -mt-3">Emails are used for payment receipts and certificates</p>
@@ -289,8 +386,13 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
             placeholder="Payment for services..."
             required
             rows={3}
-            className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors resize-none"
+            className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors resize-none ${
+              fieldErrors.description ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+            }`}
           />
+          {fieldErrors.description && (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.description}</p>
+          )}
         </div>
 
         <div className="form-group">
@@ -305,7 +407,9 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
               step="0.01"
               min="0.01"
               required
-              className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors pr-40"
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-40 ${
+                fieldErrors.amount ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+              }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2 border-l-2 border-bnb-yellow/20 pl-3">
               <img
@@ -326,7 +430,11 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
               </select>
             </div>
           </div>
-          <p className="mt-2 text-xs text-gray-400">Invoice will be paid in {formData.token}</p>
+          {fieldErrors.amount ? (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.amount}</p>
+          ) : (
+            <p className="mt-2 text-xs text-gray-400">Invoice will be paid in {formData.token}</p>
+          )}
         </div>
 
         <div className="form-group">
@@ -338,9 +446,15 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
             onChange={handleChange}
             placeholder="0x... (leave empty for any wallet)"
             pattern="^0x[a-fA-F0-9]{40}$"
-            className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors font-mono text-sm"
+            className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors font-mono text-sm ${
+              fieldErrors.payeeWalletAddress ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+            }`}
           />
-          <p className="mt-2 text-xs text-gray-400">Specify who can pay this invoice. Leave empty to allow any wallet.</p>
+          {fieldErrors.payeeWalletAddress ? (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.payeeWalletAddress}</p>
+          ) : (
+            <p className="mt-2 text-xs text-gray-400">Specify who can pay this invoice. Leave empty to allow any wallet.</p>
+          )}
         </div>
 
         <div className="form-group">

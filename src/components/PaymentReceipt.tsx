@@ -2,6 +2,22 @@ import { useState } from 'react';
 import type { NetworkType } from '../lib/web3';
 import { formatAddress } from '../lib/web3';
 
+// Token logo mapping
+const TOKEN_LOGOS: Record<string, string> = {
+  BNB: '/bnblogo.png',
+  USDT: '/usdt.png',
+  USDC: '/usdc.png',
+  BUSD: '/busd.png',
+  USD1: '/USD1.png',
+  WUSD: '/wusd.png',
+  XUSD: '/xusd-removebg-preview.png',
+  FDUSD: '/fdusd.png',
+};
+
+function getTokenLogo(token: string): string {
+  return TOKEN_LOGOS[token.toUpperCase()] || '/2.png';
+}
+
 interface PaymentReceiptProps {
   invoiceId: string;
   description: string;
@@ -61,6 +77,17 @@ export function PaymentReceipt({
   };
 
   const downloadReceipt = async () => {
+    // Helper to load images
+    const loadImage = (src: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`Failed to load: ${src}`));
+        img.src = src;
+      });
+    };
+
     // Create a canvas to render the receipt as PNG
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -68,44 +95,61 @@ export function PaymentReceipt({
 
     // Set canvas dimensions (high resolution for quality)
     const width = 800;
-    const height = 1000;
+    const height = 1100;
     const scale = 2; // 2x for retina displays
     canvas.width = width * scale;
     canvas.height = height * scale;
     ctx.scale(scale, scale);
 
-    // Background gradient
-    const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
-    bgGradient.addColorStop(0, '#0B0E11');
-    bgGradient.addColorStop(1, '#1a1d21');
-    ctx.fillStyle = bgGradient;
+    // Background - white for professional look
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // Header section with BNB yellow accent
-    ctx.fillStyle = '#F0B90B';
-    ctx.fillRect(0, 0, width, 160);
-
-    // Header text
+    // Header section with BNB dark background
     ctx.fillStyle = '#0B0E11';
-    ctx.font = 'bold 36px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('BNBPay', width / 2, 60);
-    ctx.font = '20px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Payment Receipt', width / 2, 95);
+    roundRect(ctx, 0, 0, width, 140, 0);
+    ctx.fill();
+
+    // Try to draw BNBPay logo in header
+    try {
+      const bnbLogo = await loadImage('/10.png');
+      const logoHeight = 50;
+      const logoWidth = (bnbLogo.width / bnbLogo.height) * logoHeight;
+      ctx.drawImage(bnbLogo, 50, 25, logoWidth, logoHeight);
+    } catch {
+      // Fallback to text
+      ctx.fillStyle = '#F0B90B';
+      ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('BNBPay', 50, 60);
+    }
+
+    // Payment Receipt title (right side of header)
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '500 20px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Payment Receipt', width - 50, 55);
+    ctx.fillStyle = '#F0B90B';
+    ctx.font = '14px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Invoice Payment', width - 50, 80);
 
     // Receipt ID
-    ctx.font = '14px monospace';
-    ctx.fillText(`ID: ${invoiceId.slice(0, 8)}...${invoiceId.slice(-4)}`, width / 2, 130);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '12px monospace';
+    ctx.fillText(`ID: ${invoiceId.slice(0, 8)}...${invoiceId.slice(-4)}`, width - 50, 110);
+    ctx.textAlign = 'left';
+
+    let currentY = 180;
 
     // Success checkmark circle
-    const checkY = 220;
+    const checkX = width / 2;
     ctx.beginPath();
-    ctx.arc(width / 2, checkY, 40, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+    ctx.arc(checkX, currentY, 40, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(width / 2, checkY, 35, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+    ctx.arc(checkX, currentY, 32, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
     ctx.fill();
 
     // Checkmark
@@ -114,44 +158,81 @@ export function PaymentReceipt({
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(width / 2 - 15, checkY);
-    ctx.lineTo(width / 2 - 3, checkY + 12);
-    ctx.lineTo(width / 2 + 18, checkY - 12);
+    ctx.moveTo(checkX - 15, currentY);
+    ctx.lineTo(checkX - 3, currentY + 12);
+    ctx.lineTo(checkX + 18, currentY - 12);
     ctx.stroke();
+
+    currentY += 60;
 
     // Payment Successful text
     ctx.fillStyle = '#22c55e';
     ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Payment Successful', width / 2, 290);
+    ctx.fillText('Payment Successful', width / 2, currentY);
 
-    // Amount section
-    ctx.fillStyle = '#ffffff';
+    currentY += 50;
+
+    // Token logo + Amount section
+    const tokenLogoSize = 50;
+    let tokenLogoDrawn = false;
+    try {
+      const tokenLogo = await loadImage(getTokenLogo(displayPaidToken));
+      const logoX = width / 2 - 140;
+      ctx.drawImage(tokenLogo, logoX, currentY - 35, tokenLogoSize, tokenLogoSize);
+      tokenLogoDrawn = true;
+    } catch {
+      console.log('Token logo not loaded');
+    }
+
+    // Amount text
+    ctx.fillStyle = '#1a1a1a';
     ctx.font = 'bold 48px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`${displayPaidAmount} ${displayPaidToken}`, width / 2, 360);
+    const amountText = `${displayPaidAmount} ${displayPaidToken}`;
+    const amountX = tokenLogoDrawn ? width / 2 - 80 : width / 2;
+    ctx.textAlign = tokenLogoDrawn ? 'left' : 'center';
+    ctx.fillText(amountText, amountX, currentY);
+
+    currentY += 50;
+
+    // Divider
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(50, currentY);
+    ctx.lineTo(width - 50, currentY);
+    ctx.stroke();
+
+    currentY += 30;
 
     // Details card background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-    roundRect(ctx, 50, 430, width - 100, 340, 16);
+    const cardHeight = 290;
+    ctx.fillStyle = '#F7FAFC';
+    roundRect(ctx, 50, currentY, width - 100, cardHeight, 12);
     ctx.fill();
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1;
+    roundRect(ctx, 50, currentY, width - 100, cardHeight, 12);
+    ctx.stroke();
 
     // Details content
     ctx.textAlign = 'left';
-    const leftMargin = 80;
-    const rightMargin = width - 80;
-    let yPos = 470;
-    const lineHeight = 45;
+    const leftMargin = 75;
+    const rightMargin = width - 75;
+    let yPos = currentY + 35;
+    const lineHeight = 40;
 
     // Helper function for detail rows
     const drawDetailRow = (label: string, value: string) => {
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '14px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#718096';
+      ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'left';
       ctx.fillText(label, leftMargin, yPos);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#1a1a1a';
       ctx.font = '14px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'right';
       // Truncate long values
-      const maxWidth = rightMargin - leftMargin - 120;
+      const maxWidth = rightMargin - leftMargin - 150;
       let displayValue = value;
       while (ctx.measureText(displayValue).width > maxWidth && displayValue.length > 10) {
         displayValue = displayValue.slice(0, -4) + '...';
@@ -168,29 +249,72 @@ export function PaymentReceipt({
     drawDetailRow('Payer Wallet', formatAddress(payerAddress));
     drawDetailRow('Network', network === 'mainnet' ? 'BNB Chain' : 'BNB Testnet');
 
-    // Transaction hash with highlight
-    yPos += 10;
-    ctx.fillStyle = 'rgba(240, 185, 11, 0.1)';
-    roundRect(ctx, 60, yPos - 25, width - 120, 50, 8);
-    ctx.fill();
+    currentY += cardHeight + 25;
 
-    ctx.fillStyle = '#F0B90B';
+    // Transaction hash section
+    ctx.fillStyle = '#718096';
     ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-    ctx.fillText('TRANSACTION HASH', leftMargin, yPos);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '11px monospace';
-    yPos += 20;
-    ctx.fillText(txHash, leftMargin, yPos);
+    ctx.textAlign = 'left';
+    ctx.fillText('TRANSACTION HASH', leftMargin - 25, currentY);
+    currentY += 20;
 
-    // Footer
-    ctx.fillStyle = '#6b7280';
+    // Yellow box for tx hash
+    ctx.fillStyle = '#FEF3C7';
+    roundRect(ctx, 50, currentY, width - 100, 50, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#F0B90B';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 50, currentY, width - 100, 50, 8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = '12px monospace';
+    const truncatedHash = txHash.length > 50 ? `${txHash.slice(0, 30)}...${txHash.slice(-15)}` : txHash;
+    ctx.fillText(truncatedHash, 65, currentY + 32);
+
+    currentY += 80;
+
+    // Footer section
+    const footerY = height - 100;
+
+    // Footer divider
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(50, footerY);
+    ctx.lineTo(width - 50, footerY);
+    ctx.stroke();
+
+    // Footer background
+    ctx.fillStyle = '#F7FAFC';
+    ctx.fillRect(0, footerY + 1, width, height - footerY);
+
+    // Centered "Powered by" text
+    ctx.fillStyle = '#718096';
     ctx.font = '12px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Powered by PePay Labs • BNBPay • x402 Flex Protocol', width / 2, height - 60);
+    ctx.fillText('Powered by', width / 2, footerY + 25);
 
-    ctx.fillStyle = '#4b5563';
+    // Try to draw Pepay Labs logo (centered)
+    try {
+      const pepayLogo = await loadImage('/pepaylabs.png');
+      const pepayHeight = 30;
+      const pepayWidth = (pepayLogo.width / pepayLogo.height) * pepayHeight;
+      ctx.drawImage(pepayLogo, (width - pepayWidth) / 2, footerY + 32, pepayWidth, pepayHeight);
+    } catch {
+      // Fallback text
+      ctx.fillStyle = '#F0B90B';
+      ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Pepay Labs', width / 2, footerY + 50);
+    }
+
+    // Generated date (smaller, at bottom)
+    ctx.fillStyle = '#9CA3AF';
     ctx.font = '11px system-ui, -apple-system, sans-serif';
-    ctx.fillText(txLink, width / 2, height - 35);
+    ctx.textAlign = 'center';
+    const genDate = new Date().toISOString().split('T')[0];
+    ctx.fillText(`Receipt generated on ${genDate}`, width / 2, footerY + 85);
 
     // Convert to PNG and download
     canvas.toBlob((blob) => {
@@ -308,6 +432,12 @@ export function PaymentReceipt({
           <div className="text-center">
             <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Amount Paid</p>
             <div className="flex items-center justify-center space-x-2 sm:space-x-3">
+              <img
+                src={getTokenLogo(displayPaidToken)}
+                alt={displayPaidToken}
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full"
+                onError={(e) => { (e.target as HTMLImageElement).src = '/2.png'; }}
+              />
               <span className="text-3xl sm:text-4xl font-bold text-bnb-dark">{displayPaidAmount}</span>
               <span className="text-xl sm:text-2xl font-semibold text-gray-600">{displayPaidToken}</span>
             </div>

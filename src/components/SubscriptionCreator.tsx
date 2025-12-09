@@ -3,6 +3,8 @@ import type { SubscriptionData } from '../lib/types';
 import { SubscriptionModal } from './SubscriptionModal';
 import { createSubscriptionPlan, isMetaMaskInstalled, type NetworkType } from '../lib/web3';
 import { convertToUSD, getPaymentOptions, getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
+import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
+import { AlertBanner } from './ErrorUI';
 
 interface SubscriptionCreatorProps {
   network: NetworkType;
@@ -27,12 +29,81 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
   const [loading, setLoading] = useState(false);
   const [generatedSubscription, setGeneratedSubscription] = useState<SubscriptionData | null>(null);
 
+  // Error state - structured for safe display
+  const [error, setError] = useState<{
+    code: ErrorCode;
+    message: string;
+    referenceId: string;
+    showRetry: boolean;
+  } | null>(null);
+
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Validate form fields
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.planName.trim()) {
+      errors.planName = 'Plan name is required';
+    }
+
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      errors.price = 'Please enter a valid price';
+    }
+
+    if (!['monthly', 'yearly'].includes(formData.interval)) {
+      errors.interval = 'Please select a billing interval';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle safe error display - NEVER expose internal details
+  const handleError = (err: unknown, context?: Record<string, unknown>) => {
+    const errorCode = mapToErrorCode(err);
+    const referenceId = logInternalError(errorCode, err, context);
+
+    const nonRetryableCodes = [
+      ErrorCode.VALIDATION_ERROR,
+      ErrorCode.SUBSCRIPTION_VALIDATION_FAILED,
+      ErrorCode.INVALID_SUBSCRIPTION_PRICE,
+      ErrorCode.INVALID_MERCHANT_ADDRESS,
+      ErrorCode.SIGNATURE_REJECTED,
+    ];
+
+    setError({
+      code: errorCode,
+      message: getSafeMessage(errorCode),
+      referenceId,
+      showRetry: !nonRetryableCodes.includes(errorCode),
+    });
+  };
+
+  // Clear error state
+  const clearError = () => {
+    setError(null);
+    setFieldErrors({});
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
+
+    // Validate form first
+    if (!validateForm()) {
+      return;
+    }
 
     // Check if MetaMask is installed
     if (!isMetaMaskInstalled()) {
-      alert('MetaMask is not installed. Please install MetaMask to create subscriptions on-chain.');
+      setError({
+        code: ErrorCode.WALLET_NOT_CONNECTED,
+        message: 'Please install MetaMask to create subscriptions.',
+        referenceId: generateReferenceId(),
+        showRetry: false,
+      });
       return;
     }
 
@@ -118,9 +189,14 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
       if (onSubscriptionCreated) {
         onSubscriptionCreated(finalSubscription);
       }
-    } catch (error: any) {
-      console.error('Failed to create subscription:', error);
-      alert(error.message || 'Failed to create subscription. Please try again.');
+    } catch (err: unknown) {
+      // Safe error handling - NEVER expose internal details to UI
+      handleError(err, {
+        action: 'createSubscription',
+        network,
+        tokenSelected: formData.token,
+        interval: formData.interval,
+      });
     } finally {
       setLoading(false);
     }
@@ -136,6 +212,21 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Error Banner - bounded display */}
+        {error && (
+          <AlertBanner
+            message={error.message}
+            type="error"
+            referenceId={error.referenceId}
+            showRetry={error.showRetry}
+            onRetry={() => {
+              clearError();
+              handleSubmit(new Event('submit') as unknown as React.FormEvent);
+            }}
+            onDismiss={clearError}
+          />
+        )}
+
         <div className="form-group">
           <label className="block mb-2 text-gray-300 font-semibold text-sm">Plan Name</label>
           <input
@@ -145,8 +236,13 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
             onChange={handleChange}
             placeholder="Pro Plan"
             required
-            className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors"
+            className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors ${
+              fieldErrors.planName ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+            }`}
           />
+          {fieldErrors.planName && (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.planName}</p>
+          )}
         </div>
 
         <div className="form-group">
@@ -161,7 +257,9 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
               step="0.01"
               min="0.01"
               required
-              className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors pr-40"
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-40 ${
+                fieldErrors.price ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+              }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2 border-l-2 border-bnb-yellow/20 pl-3">
               <img
@@ -182,6 +280,9 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
               </select>
             </div>
           </div>
+          {fieldErrors.price && (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.price}</p>
+          )}
         </div>
 
         <div className="form-group">
@@ -190,11 +291,16 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
             name="interval"
             value={formData.interval}
             onChange={handleChange}
-            className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors cursor-pointer"
+            className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white rounded-xl focus:outline-none transition-colors cursor-pointer ${
+              fieldErrors.interval ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
+            }`}
           >
             <option value="monthly">Monthly</option>
             <option value="yearly">Yearly</option>
           </select>
+          {fieldErrors.interval && (
+            <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.interval}</p>
+          )}
         </div>
 
         <button

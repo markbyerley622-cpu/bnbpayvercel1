@@ -3,6 +3,11 @@
  *
  * Displays an invoice and provides Permit2-based gasless payment functionality.
  * Handles approval flow, signature requests, and payment status tracking.
+ *
+ * ERROR HANDLING:
+ * - All errors are caught and displayed safely via bounded UI components
+ * - Internal error details (stack traces, raw errors) are NEVER shown to users
+ * - User-facing messages are generic but helpful
  */
 
 import { useState, useEffect } from 'react';
@@ -10,6 +15,15 @@ import { ethers } from 'ethers';
 import QRCode from 'qrcode';
 import type { Invoice } from '../hooks/useInvoices';
 import { useGaslessPayment } from '../hooks/useGaslessPayment';
+import {
+  ErrorCode,
+  getSafeMessage,
+  mapToErrorCode,
+  logInternalError,
+  generateReferenceId,
+  isRetryableError,
+} from '../lib/error-codes';
+import { AlertBanner } from './ErrorUI';
 
 export interface InvoicePaymentProps {
   invoice: Invoice;
@@ -34,6 +48,41 @@ export function InvoicePayment({
   const [copiedLink, setCopiedLink] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'approving' | 'signing' | 'relaying' | 'success' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('');
+
+  // Safe error state - NEVER expose internal details
+  const [safeError, setSafeError] = useState<{
+    code: ErrorCode;
+    message: string;
+    referenceId: string;
+    canRetry: boolean;
+  } | null>(null);
+
+  // Handle error safely - internal details logged, user gets friendly message
+  const handleSafeError = (err: unknown, context?: Record<string, unknown>) => {
+    const errorCode = mapToErrorCode(err);
+    const referenceId = logInternalError(errorCode, err, {
+      invoiceId: invoice.id,
+      merchantAddress: invoice.merchantAddress,
+      ...context,
+    });
+
+    setSafeError({
+      code: errorCode,
+      message: getSafeMessage(errorCode),
+      referenceId,
+      canRetry: isRetryableError(errorCode),
+    });
+
+    setPaymentStatus('error');
+    setStatusMessage(''); // Clear old message, error component handles display
+  };
+
+  // Clear safe error
+  const clearSafeError = () => {
+    setSafeError(null);
+    setPaymentStatus('idle');
+    setStatusMessage('');
+  };
 
   const {
     payGasless,
@@ -109,8 +158,13 @@ export function InvoicePayment({
 
   const handleApproveToken = async () => {
     if (!signer) {
+      setSafeError({
+        code: ErrorCode.WALLET_NOT_CONNECTED,
+        message: getSafeMessage(ErrorCode.WALLET_NOT_CONNECTED),
+        referenceId: generateReferenceId(),
+        canRetry: false,
+      });
       setPaymentStatus('error');
-      setStatusMessage('No wallet connected');
       return;
     }
 
@@ -118,25 +172,31 @@ export function InvoicePayment({
       setPaymentStatus('approving');
       setStatusMessage('Requesting token approval...');
       clearError();
+      clearSafeError();
 
-      const txHash = await approveToken(invoice.tokenAddress, signer);
+      await approveToken(invoice.tokenAddress, signer);
 
-      setStatusMessage(`Token approved! Tx: ${txHash.substring(0, 10)}...`);
+      setStatusMessage('Token approved successfully!');
       setTimeout(() => {
         setPaymentStatus('idle');
         setStatusMessage('');
       }, 3000);
-    } catch (err: any) {
-      setPaymentStatus('error');
-      setStatusMessage(err.message || 'Approval failed');
-      onPaymentError?.(err);
+    } catch (err: unknown) {
+      // Safe error handling - NEVER show raw error to user
+      handleSafeError(err, { action: 'approveToken', token: invoice.currency });
+      onPaymentError?.(err instanceof Error ? err : new Error('Approval failed'));
     }
   };
 
   const handlePayWithPermit2 = async () => {
     if (!signer || !provider) {
+      setSafeError({
+        code: ErrorCode.WALLET_NOT_CONNECTED,
+        message: getSafeMessage(ErrorCode.WALLET_NOT_CONNECTED),
+        referenceId: generateReferenceId(),
+        canRetry: false,
+      });
       setPaymentStatus('error');
-      setStatusMessage('No wallet connected');
       return;
     }
 
@@ -144,6 +204,7 @@ export function InvoicePayment({
       setPaymentStatus('signing');
       setStatusMessage('Requesting signatures...');
       clearError();
+      clearSafeError();
 
       const result = await payGasless({
         merchantAddress: invoice.merchantAddress,
@@ -157,7 +218,7 @@ export function InvoicePayment({
       });
 
       setPaymentStatus('success');
-      setStatusMessage(`Payment successful! Tx: ${result.txHash.substring(0, 10)}...`);
+      setStatusMessage('Payment successful!');
 
       // Notify parent component
       onPaymentSuccess?.(result.txHash, result.paymentId);
@@ -166,10 +227,15 @@ export function InvoicePayment({
       setTimeout(() => {
         onClose?.();
       }, 3000);
-    } catch (err: any) {
-      setPaymentStatus('error');
-      setStatusMessage(err.message || 'Payment failed');
-      onPaymentError?.(err);
+    } catch (err: unknown) {
+      // Safe error handling - NEVER expose raw error to user
+      // Generic message for payment failures to avoid leaking internal details
+      handleSafeError(err, {
+        action: 'payWithPermit2',
+        invoiceAmount: invoice.amount,
+        token: invoice.currency,
+      });
+      onPaymentError?.(err instanceof Error ? err : new Error('Payment failed'));
     }
   };
 
@@ -292,15 +358,29 @@ export function InvoicePayment({
             </div>
           )}
 
-          {/* Error Display */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="font-semibold text-red-700">Payment Error</div>
-              <div className="text-sm text-red-600 mt-1">{error.message}</div>
-              {error.code && (
-                <div className="text-xs text-red-500 mt-1">Code: {error.code}</div>
-              )}
-            </div>
+          {/* Safe Error Display - bounded, no internal details */}
+          {safeError && (
+            <AlertBanner
+              message={safeError.message}
+              type="error"
+              referenceId={safeError.referenceId}
+              showRetry={safeError.canRetry}
+              onRetry={safeError.canRetry ? () => {
+                clearSafeError();
+                handlePayWithPermit2();
+              } : undefined}
+              onDismiss={clearSafeError}
+            />
+          )}
+
+          {/* Legacy error display (from hook) - also wrapped safely */}
+          {error && !safeError && (
+            <AlertBanner
+              message={getSafeMessage(mapToErrorCode(error))}
+              type="error"
+              referenceId={generateReferenceId()}
+              onDismiss={clearError}
+            />
           )}
 
           {/* Payment Actions */}

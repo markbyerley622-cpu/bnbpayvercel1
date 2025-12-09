@@ -8,6 +8,11 @@ import { getTokenImagePath, getTokenDisplayName, getTokensForNetwork, type Token
 import { FloatingParticles } from './FloatingParticles';
 import { AgentFlowPanel } from './AgentFlowPanel';
 import { PaymentReceipt } from './PaymentReceipt';
+import { CustomerHeader } from './CustomerHeader';
+import { ReceiptHistory } from './ReceiptHistory';
+import { ReceiptViewer } from './ReceiptViewer';
+import { createInvoiceReceipt, type PaymentReceipt as StoredReceipt } from '../lib/receipt-storage';
+import { downloadReceiptPng } from '../lib/receipt-generator';
 import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, getTokenCapabilities, type Invoice as ApiInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { payInvoiceGasless, isPermit2Approved, approvePermit2, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
 
@@ -36,6 +41,11 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
   const qrCanvasDesktopRef = useRef<HTMLCanvasElement>(null);
   const qrCanvasMobileRef = useRef<HTMLCanvasElement>(null);
   const sseRef = useRef<EventSource | null>(null);
+
+  // Receipt History and Viewer modals
+  const [showReceiptHistory, setShowReceiptHistory] = useState(false);
+  const [showReceiptViewer, setShowReceiptViewer] = useState(false);
+  const [selectedViewReceipt, setSelectedViewReceipt] = useState<StoredReceipt | null>(null);
 
   // Payment mode: 'gas' (user pays gas) or 'gasless' (relayer pays gas)
   // Gasless mode uses EIP-3009/EIP-2612/Permit2 + witness signatures
@@ -133,9 +143,34 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
 
         // Check if already paid
         if (inv.status === 'paid') {
-          setPaymentStatus('paid');
-          setTxHash(inv.txHash || null);
-          setPaidAt(new Date(inv.updatedAt).getTime());
+          // Use functional updates to avoid overwriting existing state
+          setPaymentStatus((current) => current === 'paid' ? current : 'paid');
+          setTxHash((current) => current || inv.txHash || null);
+          setPaidAt((current) => current || new Date(inv.updatedAt).getTime());
+          // Also try to get paidToken/paidAmount from localStorage (API may not have it)
+          // Only if not already set
+          setPaidToken((current) => {
+            if (current) return current;
+            const storedInvoice = localStorage.getItem(`invoice_${invoiceId}`);
+            if (storedInvoice) {
+              try {
+                const parsed = JSON.parse(storedInvoice);
+                return parsed.paidToken || null;
+              } catch { return null; }
+            }
+            return null;
+          });
+          setPaidAmount((current) => {
+            if (current) return current;
+            const storedInvoice = localStorage.getItem(`invoice_${invoiceId}`);
+            if (storedInvoice) {
+              try {
+                const parsed = JSON.parse(storedInvoice);
+                return parsed.paidAmount || null;
+              } catch { return null; }
+            }
+            return null;
+          });
           return;
         }
 
@@ -151,20 +186,51 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
             if (data.event === 'update' || data.event === 'snapshot') {
               const invoiceData = data.data || data;
               if (invoiceData.status === 'paid') {
-                setPaymentStatus('paid');
-                setTxHash(invoiceData.txHash || null);
-                setPaidAt(invoiceData.updatedAt ? new Date(invoiceData.updatedAt).getTime() : Date.now());
+                // Only update status if not already paid (avoid race condition with direct payment)
+                setPaymentStatus((current) => {
+                  if (current === 'paid') return current; // Already paid, don't change
+                  return 'paid';
+                });
+                setTxHash((current) => current || invoiceData.txHash || null);
+                setPaidAt((current) => current || (invoiceData.updatedAt ? new Date(invoiceData.updatedAt).getTime() : Date.now()));
 
-                // Update local storage
+                // Only try to get paidToken/paidAmount from localStorage if not already set
+                // This prevents SSE from overwriting values set by direct payment
+                setPaidToken((current) => {
+                  if (current) return current; // Already set, don't change
+                  const storedInvoice = localStorage.getItem(`invoice_${invoiceId}`);
+                  if (storedInvoice) {
+                    try {
+                      const parsed = JSON.parse(storedInvoice);
+                      return parsed.paidToken || null;
+                    } catch { return null; }
+                  }
+                  return null;
+                });
+                setPaidAmount((current) => {
+                  if (current) return current; // Already set, don't change
+                  const storedInvoice = localStorage.getItem(`invoice_${invoiceId}`);
+                  if (storedInvoice) {
+                    try {
+                      const parsed = JSON.parse(storedInvoice);
+                      return parsed.paidAmount || null;
+                    } catch { return null; }
+                  }
+                  return null;
+                });
+
+                // Update local storage status
                 const storedInvoice = localStorage.getItem(`invoice_${invoiceId}`);
                 if (storedInvoice) {
-                  const parsed = JSON.parse(storedInvoice);
-                  localStorage.setItem(`invoice_${invoiceId}`, JSON.stringify({
-                    ...parsed,
-                    status: 'paid',
-                    txHash: invoiceData.txHash,
-                    paidAt: Date.now(),
-                  }));
+                  try {
+                    const parsed = JSON.parse(storedInvoice);
+                    localStorage.setItem(`invoice_${invoiceId}`, JSON.stringify({
+                      ...parsed,
+                      status: 'paid',
+                      txHash: invoiceData.txHash || parsed.txHash,
+                      paidAt: parsed.paidAt || Date.now(),
+                    }));
+                  } catch { /* ignore */ }
                 }
               }
             }
@@ -305,6 +371,16 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       if ((foundInvoice as any).status === 'paid' || (foundInvoice as any).txHash) {
         setPaymentStatus('paid');
         setTxHash((foundInvoice as any).txHash || null);
+        // Set paidToken/paidAmount from stored data if available
+        if ((foundInvoice as any).paidToken) {
+          setPaidToken((foundInvoice as any).paidToken);
+        }
+        if ((foundInvoice as any).paidAmount) {
+          setPaidAmount((foundInvoice as any).paidAmount);
+        }
+        if ((foundInvoice as any).paidAt) {
+          setPaidAt((foundInvoice as any).paidAt);
+        }
       }
     } else {
       // Check if we're on a URL without data parameter - provide helpful message
@@ -343,6 +419,10 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
           if (tx && tx.to?.toLowerCase() === merchant.toLowerCase()) {
             setPaymentStatus('paid');
             setTxHash(payment.txHash);
+            // Set paidToken/paidAmount from payment record
+            if (payment.token) setPaidToken(payment.token);
+            if (payment.amount) setPaidAmount(payment.amount);
+            if (payment.paidAt) setPaidAt(payment.paidAt);
 
             // Update invoice
             const updatedInvoice = {
@@ -350,6 +430,8 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
               status: 'paid' as const,
               txHash: payment.txHash,
               paidAt: payment.paidAt,
+              paidToken: payment.token,
+              paidAmount: payment.amount,
             };
             setInvoice(updatedInvoice);
             localStorage.setItem(`invoice_${invoice.invoiceId}`, JSON.stringify(updatedInvoice));
@@ -741,6 +823,32 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
         // Update invoice state
         setInvoice(updatedInvoice);
 
+        // Save receipt to wallet-specific storage for Receipt History
+        // Storage key: bnbpay_receipts_<WALLET_ADDRESS>
+        if (currentWallet) {
+          try {
+            const savedReceipt = createInvoiceReceipt({
+              walletAddress: currentWallet,
+              invoiceId: invoice.invoiceId || invoiceId,
+              reference: invoice.referenceId || `inv_${invoice.invoiceId || invoiceId}`,
+              amount: amount,
+              currency: settlementToken,
+              token: tokenSymbol,
+              merchantAddress: merchant,
+              merchantName: (invoice as any).merchantName || 'BNBPay Merchant',
+              payerWallet: currentWallet,
+              description: invoice.description || 'Invoice Payment',
+              txHash: result.txHash,
+              status: 'paid',
+              network: network,
+            });
+            console.log('Receipt saved to wallet storage:', savedReceipt);
+            console.log('Storage key:', `bnbpay_receipts_${currentWallet.toLowerCase()}`);
+          } catch (receiptError) {
+            console.error('Failed to save receipt:', receiptError);
+          }
+        }
+
         // Show receipt
         setShowReceipt(true);
       } catch (e) {
@@ -833,6 +941,16 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
     return (
       <>
         <FloatingParticles />
+
+        {/* Customer Header */}
+        <CustomerHeader
+          network={network}
+          onNetworkChange={setNetwork}
+          onWalletChanged={setWalletAddress}
+          walletAddress={walletAddress}
+          allowNetworkChange={false}
+        />
+
         {/* Receipt Modal */}
         {showReceipt && txHash && (
           <PaymentReceipt
@@ -955,10 +1073,52 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
     );
   }
 
+  // Handlers for receipt history and viewer
+  const handleViewReceipt = (receipt: StoredReceipt) => {
+    setSelectedViewReceipt(receipt);
+    setShowReceiptViewer(true);
+  };
+
+  const handleDownloadReceipt = async (receipt: StoredReceipt) => {
+    try {
+      await downloadReceiptPng(receipt);
+    } catch (error) {
+      console.error('Failed to download receipt:', error);
+    }
+  };
+
   return (
     <>
       {/* Floating Particles Background */}
       <FloatingParticles />
+
+      {/* Customer Header with Receipt History */}
+      <CustomerHeader
+        network={network}
+        onNetworkChange={setNetwork}
+        onWalletChanged={setWalletAddress}
+        walletAddress={walletAddress}
+        allowNetworkChange={false}
+      />
+
+      {/* Receipt History Modal */}
+      <ReceiptHistory
+        isOpen={showReceiptHistory}
+        onClose={() => setShowReceiptHistory(false)}
+        walletAddress={walletAddress}
+        onViewReceipt={handleViewReceipt}
+        onDownloadReceipt={handleDownloadReceipt}
+      />
+
+      {/* Receipt Viewer Modal */}
+      <ReceiptViewer
+        isOpen={showReceiptViewer}
+        onClose={() => {
+          setShowReceiptViewer(false);
+          setSelectedViewReceipt(null);
+        }}
+        receipt={selectedViewReceipt}
+      />
 
       <div className="min-h-screen bg-bnb-dark content-wrapper relative">
         {/* Background glow effects */}

@@ -160,6 +160,22 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
 
     if (foundSubscription) {
       setSubscription(foundSubscription);
+
+      // Check if subscription was already paid (from localStorage)
+      if ((foundSubscription as any).status === 'paid' || (foundSubscription as any).lastTxHash) {
+        setPaymentStatus('paid');
+        setTxHash((foundSubscription as any).lastTxHash || null);
+        // Set paidToken/paidAmount from stored data if available
+        if ((foundSubscription as any).paidToken) {
+          setPaidToken((foundSubscription as any).paidToken);
+        }
+        if ((foundSubscription as any).paidAmount) {
+          setPaidAmount((foundSubscription as any).paidAmount);
+        }
+        if ((foundSubscription as any).lastPaidAt) {
+          setPaidAt((foundSubscription as any).lastPaidAt);
+        }
+      }
     } else {
       setError('Subscription not found. The subscription may have been deleted or the link is invalid.');
     }

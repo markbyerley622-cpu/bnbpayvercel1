@@ -104,7 +104,7 @@ function HomePage() {
             </div>
 
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Multi-token acceptance • {network === 'mainnet' ? 'BNB, USDT, USDC, BUSD' : 'TBNB, TUSDT, TUSDC, TBUSD'} • X402 Flex Protocol
+              Multi-token acceptance • BNB, USDT, USDC, XUSD, WUSD, USD1 • X402 Flex Protocol
             </p>
           </div>
 
@@ -128,7 +128,7 @@ function HomePage() {
                 <h2 className="text-2xl font-bold text-white">Generate Invoice</h2>
               </div>
               <p className="text-gray-400 text-sm">
-                Create invoices with multi-token acceptance ({network === 'mainnet' ? 'BNB, USDT, USDC, BUSD' : 'TBNB, TUSDT, TUSDC, TBUSD'})
+                Create invoices with multi-token acceptance (BNB, USDT, USDC, XUSD, WUSD, USD1)
               </p>
               <div className="mt-4 inline-flex items-center text-bnb-yellow text-sm font-semibold">
                 <span>Create Invoice</span>
@@ -156,7 +156,7 @@ function HomePage() {
                 <h2 className="text-2xl font-bold text-white">Create Subscription</h2>
               </div>
               <p className="text-gray-400 text-sm">
-                Set up recurring payments with automatic retries ({network === 'mainnet' ? 'BNB, USDT, USDC, BUSD' : 'TBNB, TUSDT, TUSDC, TBUSD'})
+                Set up recurring payments with automatic retries (BNB, USDT, USDC, XUSD, WUSD, USD1)
               </p>
               <div className="mt-4 inline-flex items-center text-bnb-yellow text-sm font-semibold">
                 <span>Create Plan</span>
