@@ -45,6 +45,8 @@ export function HistoryPage() {
   const [activeTab, setActiveTab] = useState<'invoices' | 'subscriptions' | 'analytics'>('invoices');
   const [mounted, setMounted] = useState(false);
   const [selectedItemForMCP, setSelectedItemForMCP] = useState<InvoiceData | SubscriptionData | null>(null);
+  const [txPage, setTxPage] = useState(1);
+  const TX_PER_PAGE = 10;
 
   // Fetch on-chain payments from BNBPay API
   // Use 'all' role to get payments where wallet is either payer or merchant
@@ -320,7 +322,7 @@ export function HistoryPage() {
               </div>
               <h2 className="text-3xl font-bold text-white mb-4">Connect Your Wallet</h2>
               <p className="text-gray-400 text-lg">
-                Connect your MetaMask wallet to view your payment history
+                Connect your wallet to view your payment history
               </p>
             </div>
           ) : (
@@ -407,11 +409,11 @@ export function HistoryPage() {
                   ) : (
                     <div className="grid grid-cols-1 gap-6">
                       {invoices.map((invoice, index) => (
-                        <div key={index} className="card-shadow rounded-2xl p-6 hover-lift transition-all relative group">
+                        <div key={index} className="card-shadow rounded-2xl p-4 sm:p-6 hover-lift transition-all relative group">
                           {/* Delete Button - appears on hover */}
                           <button
                             onClick={() => deleteInvoice(invoice.invoiceId || '')}
-                            className="absolute top-4 right-4 w-8 h-8 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+                            className="absolute top-2 right-2 sm:top-4 sm:right-4 w-8 h-8 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
                             title="Delete Invoice"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -419,22 +421,22 @@ export function HistoryPage() {
                             </svg>
                           </button>
 
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-3 mb-2">
-                                <h3 className="text-xl font-bold text-white">{invoice.description}</h3>
-                                <span className="px-3 py-1 bg-bnb-yellow/20 text-bnb-yellow text-xs font-semibold rounded-full">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                            <div className="flex-1 min-w-0 pr-8 sm:pr-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h3 className="text-lg sm:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-none">{invoice.description}</h3>
+                                <span className="px-2 sm:px-3 py-1 bg-bnb-yellow/20 text-bnb-yellow text-xs font-semibold rounded-full whitespace-nowrap">
                                   Invoice
                                 </span>
                                 {invoice.status === 'paid' ? (
-                                  <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full flex items-center space-x-1">
+                                  <span className="px-2 sm:px-3 py-1 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                     <span>Paid</span>
                                   </span>
                                 ) : (
-                                  <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full flex items-center space-x-1">
+                                  <span className="px-2 sm:px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
@@ -442,26 +444,26 @@ export function HistoryPage() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-gray-400 text-sm">
+                              <p className="text-gray-400 text-xs sm:text-sm">
                                 Created {formatDate(invoice.createdAt)}
                                 {invoice.paidAt && (
-                                  <span className="ml-2 text-green-400">• Paid {formatDate(invoice.paidAt)}</span>
+                                  <span className="block sm:inline sm:ml-2 text-green-400">• Paid {formatDate(invoice.paidAt)}</span>
                                 )}
                               </p>
                             </div>
-                            <div className="text-right pr-10">
-                              <div className="flex items-center justify-end space-x-2">
-                                <p className="text-3xl font-bold text-bnb-yellow">{invoice.amount}</p>
+                            <div className="text-left sm:text-right sm:pr-10 flex-shrink-0">
+                              <div className="flex items-center sm:justify-end space-x-2">
+                                <p className="text-2xl sm:text-3xl font-bold text-bnb-yellow">{invoice.amount}</p>
                                 <img
                                   src={getTokenImagePath(invoice.settlement || invoice.paymentToken || 'BNB')}
                                   alt={invoice.settlement || invoice.paymentToken}
-                                  className="h-7 w-7 rounded-full"
+                                  className="h-6 w-6 sm:h-7 sm:w-7 rounded-full"
                                 />
                               </div>
-                              <p className="text-gray-500 text-sm">{getTokenDisplayName(invoice.settlement || invoice.paymentToken || 'BNB')}</p>
+                              <p className="text-gray-500 text-xs sm:text-sm">{getTokenDisplayName(invoice.settlement || invoice.paymentToken || 'BNB')}</p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-bnb-gray">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-bnb-gray">
                             <div>
                               <p className="text-gray-500 text-sm mb-1">Payment Token</p>
                               <div className="flex items-center space-x-2">
@@ -633,11 +635,11 @@ export function HistoryPage() {
                   ) : (
                     <div className="grid grid-cols-1 gap-6">
                       {subscriptions.map((subscription, index) => (
-                        <div key={index} className="card-shadow rounded-2xl p-6 hover-lift transition-all relative group">
+                        <div key={index} className="card-shadow rounded-2xl p-4 sm:p-6 hover-lift transition-all relative group">
                           {/* Delete Button - appears on hover */}
                           <button
                             onClick={() => deleteSubscription(subscription.subscriptionId || '')}
-                            className="absolute top-4 right-4 w-8 h-8 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+                            className="absolute top-2 right-2 sm:top-4 sm:right-4 w-8 h-8 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
                             title="Delete Subscription"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,42 +647,42 @@ export function HistoryPage() {
                             </svg>
                           </button>
 
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-3 mb-2">
-                                <h3 className="text-xl font-bold text-white">{subscription.planName}</h3>
-                                <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded-full capitalize">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                            <div className="flex-1 min-w-0 pr-8 sm:pr-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h3 className="text-lg sm:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-none">{subscription.planName}</h3>
+                                <span className="px-2 sm:px-3 py-1 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded-full capitalize whitespace-nowrap">
                                   {subscription.interval}
                                 </span>
-                                <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full flex items-center space-x-1">
+                                <span className="px-2 sm:px-3 py-1 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full flex items-center space-x-1 whitespace-nowrap">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                                   </svg>
                                   <span>Active</span>
                                 </span>
                               </div>
-                              <p className="text-gray-400 text-sm">Created {formatDate(subscription.createdAt)}</p>
+                              <p className="text-gray-400 text-xs sm:text-sm">Created {formatDate(subscription.createdAt)}</p>
                             </div>
                           </div>
-                          <div className="flex items-center justify-between p-4 bg-bnb-gray/30 rounded-xl mb-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-3 sm:p-4 bg-bnb-gray/30 rounded-xl mb-4">
                             <div>
                               <p className="text-gray-500 text-sm mb-1">Subscription Price</p>
-                              <p className="text-2xl font-bold text-bnb-yellow">{subscription.price || subscription.price_usd1} {getTokenDisplayName(subscription.settlement || subscription.paymentToken || 'BNB')}</p>
-                              <p className="text-gray-500 text-sm">per {subscription.interval === 'monthly' ? 'month' : 'year'}</p>
+                              <p className="text-xl sm:text-2xl font-bold text-bnb-yellow">{subscription.price || subscription.price_usd1} {getTokenDisplayName(subscription.settlement || subscription.paymentToken || 'BNB')}</p>
+                              <p className="text-gray-500 text-xs sm:text-sm">per {subscription.interval === 'monthly' ? 'month' : 'year'}</p>
                             </div>
                             <div className="flex items-center space-x-2">
                               <img
                                 src={getTokenImagePath(subscription.settlement || subscription.paymentToken || 'BNB')}
                                 alt={subscription.settlement || subscription.paymentToken}
-                                className="h-8 w-8 rounded-full"
+                                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full"
                               />
                               <div>
-                                <p className="text-white font-semibold">{getTokenDisplayName(subscription.settlement || subscription.paymentToken || 'BNB')}</p>
-                                <p className="text-gray-400 text-sm">Payment token</p>
+                                <p className="text-white font-semibold text-sm sm:text-base">{getTokenDisplayName(subscription.settlement || subscription.paymentToken || 'BNB')}</p>
+                                <p className="text-gray-400 text-xs sm:text-sm">Payment token</p>
                               </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {subscription.txHash && (
                               <div>
                                 <p className="text-gray-500 text-sm mb-1">Transaction Hash</p>
@@ -884,9 +886,23 @@ export function HistoryPage() {
                       if (lowerAddr === '0x55d398326f99059ff775485246999027b3197955') return 'USDT';
                       if (lowerAddr === '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d') return 'USDC';
                       if (lowerAddr === '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd') return 'USDT';
+                      // WUSD token address
+                      if (lowerAddr === '0x5e5e1bcf6e7b4f9d5b4b9e9f0c3c4d5e6f7a8b9c' || lowerAddr.includes('5e5e')) return 'WUSD';
+                      // XUSD token address
+                      if (lowerAddr === '0xbca3f2d1e4c5b6a7d8e9f0a1b2c3d4e5f6a7fab2' || lowerAddr.includes('bca3')) return 'XUSD';
                       if (lowerAddr === '0x60ea31f08d3a73fc3c43d4f8e28ee6edca2b8c0f') return 'USD1';
                       if (lowerAddr.includes('60ea')) return 'USD1';
                       return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+                    };
+
+                    // Token logo paths - match actual files in public/
+                    const tokenLogos: Record<string, string> = {
+                      'BNB': '/bnblogo.png',
+                      'USDT': '/usdt.png',
+                      'USDC': '/usdc.png',
+                      'USD1': '/USD1.png',
+                      'WUSD': '/wusd.png',
+                      'XUSD': '/xusd-removebg-preview.png',
                     };
 
                     // Color mapping for tokens
@@ -895,6 +911,8 @@ export function HistoryPage() {
                       'USDT': 'from-green-400 to-emerald-500',
                       'USDC': 'from-blue-400 to-blue-500',
                       'USD1': 'from-purple-400 to-purple-500',
+                      'WUSD': 'from-cyan-400 to-cyan-500',
+                      'XUSD': 'from-pink-400 to-rose-500',
                     };
 
                     const getTokenColor = (symbol: string) => tokenColors[symbol] || 'from-gray-400 to-gray-500';
@@ -973,12 +991,26 @@ export function HistoryPage() {
                               {sortedTokens.map(([, data], idx) => {
                                 const symbol = getTokenSymbol(data.address);
                                 const percentage = totalTokenVolume > 0 ? ((data.volume / totalTokenVolume) * 100).toFixed(1) : '0';
+                                const logoPath = tokenLogos[symbol];
                                 return (
                                   <div key={idx} className="relative">
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex items-center space-x-3">
-                                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getTokenColor(symbol)} flex items-center justify-center`}>
-                                          <span className="text-white text-xs font-bold">{symbol.slice(0, 2)}</span>
+                                        {logoPath ? (
+                                          <img
+                                            src={logoPath}
+                                            alt={symbol}
+                                            className="w-10 h-10 rounded-full object-cover shadow-lg"
+                                            onError={(e) => {
+                                              // Fallback to gradient if image fails to load
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              target.nextElementSibling?.classList.remove('hidden');
+                                            }}
+                                          />
+                                        ) : null}
+                                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getTokenColor(symbol)} flex items-center justify-center shadow-lg ${logoPath ? 'hidden' : ''}`}>
+                                          <span className="text-white text-sm font-bold">{symbol.slice(0, 2)}</span>
                                         </div>
                                         <div>
                                           <p className="text-white font-medium">{symbol}</p>
@@ -1061,109 +1093,172 @@ export function HistoryPage() {
                         </div>
 
                         {/* Recent Transactions Table */}
-                        <div className="card-shadow rounded-2xl overflow-hidden">
-                          <div className="p-6 border-b border-bnb-gray">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                                <svg className="w-5 h-5 text-bnb-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                                </svg>
-                                <span>Recent Transactions</span>
-                              </h3>
-                              <span className="text-gray-400 text-sm">{payments.length} of {totalTransactions}</span>
-                            </div>
-                          </div>
+                        {(() => {
+                          // Pagination logic
+                          const totalPages = Math.ceil(payments.length / TX_PER_PAGE);
+                          const startIdx = (txPage - 1) * TX_PER_PAGE;
+                          const endIdx = startIdx + TX_PER_PAGE;
+                          const paginatedPayments = payments.slice(startIdx, endIdx);
 
-                          {/* Table Header */}
-                          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-bnb-gray/30 text-gray-400 text-xs font-medium uppercase tracking-wider">
-                            <div className="col-span-3">Payment ID</div>
-                            <div className="col-span-2">Amount</div>
-                            <div className="col-span-2">From</div>
-                            <div className="col-span-2">To</div>
-                            <div className="col-span-1">Status</div>
-                            <div className="col-span-2">Time</div>
-                          </div>
-
-                          {/* Table Body */}
-                          <div className="divide-y divide-bnb-gray/50">
-                            {payments.map((payment: Payment, index: number) => (
-                              <div
-                                key={payment.paymentId || index}
-                                className="group px-6 py-4 hover:bg-bnb-gray/20 transition-colors cursor-pointer"
-                                onClick={() => {
-                                  if (payment.txHash) {
-                                    window.open(`${payment.network === 'bnb' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${payment.txHash}`, '_blank');
-                                  }
-                                }}
-                              >
-                                {/* Desktop View */}
-                                <div className="hidden md:grid grid-cols-12 gap-4 items-center">
-                                  <div className="col-span-3">
-                                    <div className="flex items-center space-x-2">
-                                      <span className="text-white font-mono text-sm group-hover:text-bnb-yellow transition-colors">
-                                        {payment.paymentId.slice(0, 10)}...{payment.paymentId.slice(-4)}
-                                      </span>
-                                      <svg className="w-3 h-3 text-gray-500 group-hover:text-bnb-yellow opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                      </svg>
-                                    </div>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <div className="flex items-center space-x-2">
-                                      <span className="text-bnb-yellow font-semibold">{formatPaymentAmount(payment.amount, 18)}</span>
-                                      <span className="text-gray-500 text-xs">{getTokenSymbol(payment.token)}</span>
-                                    </div>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <span className="text-gray-300 font-mono text-sm">{formatAddress(payment.payer)}</span>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <span className="text-gray-300 font-mono text-sm">{formatAddress(payment.merchant)}</span>
-                                  </div>
-                                  <div className="col-span-1">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5"></span>
-                                      Settled
-                                    </span>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <span className="text-gray-400 text-sm">{formatDate(new Date(payment.timestamp).getTime())}</span>
-                                  </div>
+                          return (
+                            <div className="card-shadow rounded-2xl overflow-hidden">
+                              <div className="p-6 border-b border-bnb-gray">
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                                    <svg className="w-5 h-5 text-bnb-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                    </svg>
+                                    <span>Recent Transactions</span>
+                                  </h3>
+                                  <span className="text-gray-400 text-sm">
+                                    Showing {startIdx + 1}-{Math.min(endIdx, payments.length)} of {totalTransactions}
+                                  </span>
                                 </div>
+                              </div>
 
-                                {/* Mobile View */}
-                                <div className="md:hidden space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-white font-mono text-sm">
-                                      {payment.paymentId.slice(0, 8)}...{payment.paymentId.slice(-4)}
-                                    </span>
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                                      Settled
-                                    </span>
+                              {/* Table Header */}
+                              <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-bnb-gray/30 text-gray-400 text-xs font-medium uppercase tracking-wider">
+                                <div className="col-span-3">Payment ID</div>
+                                <div className="col-span-2">Amount</div>
+                                <div className="col-span-2">From</div>
+                                <div className="col-span-2">To</div>
+                                <div className="col-span-1">Status</div>
+                                <div className="col-span-2">Time</div>
+                              </div>
+
+                              {/* Table Body */}
+                              <div className="divide-y divide-bnb-gray/50">
+                                {paginatedPayments.map((payment: Payment, index: number) => (
+                                  <div
+                                    key={payment.paymentId || index}
+                                    className="group px-6 py-4 hover:bg-bnb-gray/20 transition-colors cursor-pointer"
+                                    onClick={() => {
+                                      if (payment.txHash) {
+                                        window.open(`${payment.network === 'bnb' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${payment.txHash}`, '_blank');
+                                      }
+                                    }}
+                                  >
+                                    {/* Desktop View */}
+                                    <div className="hidden md:grid grid-cols-12 gap-4 items-center">
+                                      <div className="col-span-3">
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-white font-mono text-sm group-hover:text-bnb-yellow transition-colors">
+                                            {payment.paymentId.slice(0, 10)}...{payment.paymentId.slice(-4)}
+                                          </span>
+                                          <svg className="w-3 h-3 text-gray-500 group-hover:text-bnb-yellow opacity-0 group-hover:opacity-100 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                          </svg>
+                                        </div>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-bnb-yellow font-semibold">{formatPaymentAmount(payment.amount, 18)}</span>
+                                          <span className="text-gray-500 text-xs">{getTokenSymbol(payment.token)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <span className="text-gray-300 font-mono text-sm">{formatAddress(payment.payer)}</span>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <span className="text-gray-300 font-mono text-sm">{formatAddress(payment.merchant)}</span>
+                                      </div>
+                                      <div className="col-span-1">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5"></span>
+                                          Settled
+                                        </span>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <span className="text-gray-400 text-sm">{formatDate(new Date(payment.timestamp).getTime())}</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Mobile View */}
+                                    <div className="md:hidden space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-white font-mono text-sm">
+                                          {payment.paymentId.slice(0, 8)}...{payment.paymentId.slice(-4)}
+                                        </span>
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                                          Settled
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-bnb-yellow font-semibold">{formatPaymentAmount(payment.amount, 18)} {getTokenSymbol(payment.token)}</span>
+                                        <span className="text-gray-400 text-xs">{formatDate(new Date(payment.timestamp).getTime())}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-4 text-xs">
+                                        <span className="text-gray-500">From: <span className="text-gray-300 font-mono">{formatAddress(payment.payer)}</span></span>
+                                        <span className="text-gray-500">To: <span className="text-gray-300 font-mono">{formatAddress(payment.merchant)}</span></span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-bnb-yellow font-semibold">{formatPaymentAmount(payment.amount, 18)} {getTokenSymbol(payment.token)}</span>
-                                    <span className="text-gray-400 text-xs">{formatDate(new Date(payment.timestamp).getTime())}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-4 text-xs">
-                                    <span className="text-gray-500">From: <span className="text-gray-300 font-mono">{formatAddress(payment.payer)}</span></span>
-                                    <span className="text-gray-500">To: <span className="text-gray-300 font-mono">{formatAddress(payment.merchant)}</span></span>
+                                ))}
+                              </div>
+
+                              {/* Pagination Footer */}
+                              <div className="px-6 py-4 bg-bnb-gray/20 border-t border-bnb-gray/30">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-gray-400 text-sm">
+                                    Page {txPage} of {totalPages || 1}
+                                  </p>
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={() => setTxPage(Math.max(1, txPage - 1))}
+                                      disabled={txPage === 1}
+                                      className="flex items-center space-x-1 px-3 py-1.5 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                                      </svg>
+                                      <span className="text-sm">Prev</span>
+                                    </button>
+
+                                    {/* Page numbers */}
+                                    <div className="flex items-center space-x-1">
+                                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        let pageNum;
+                                        if (totalPages <= 5) {
+                                          pageNum = i + 1;
+                                        } else if (txPage <= 3) {
+                                          pageNum = i + 1;
+                                        } else if (txPage >= totalPages - 2) {
+                                          pageNum = totalPages - 4 + i;
+                                        } else {
+                                          pageNum = txPage - 2 + i;
+                                        }
+                                        return (
+                                          <button
+                                            key={pageNum}
+                                            onClick={() => setTxPage(pageNum)}
+                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                                              txPage === pageNum
+                                                ? 'bg-bnb-yellow text-bnb-dark'
+                                                : 'bg-bnb-gray/50 text-gray-300 hover:bg-bnb-gray hover:text-white'
+                                            }`}
+                                          >
+                                            {pageNum}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <button
+                                      onClick={() => setTxPage(Math.min(totalPages, txPage + 1))}
+                                      disabled={txPage === totalPages || totalPages === 0}
+                                      className="flex items-center space-x-1 px-3 py-1.5 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-bnb-gray/50 disabled:hover:text-gray-300"
+                                    >
+                                      <span className="text-sm">Next</span>
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                                      </svg>
+                                    </button>
                                   </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-
-                          {/* Pagination Footer */}
-                          {apiPaymentsData.hasMore && (
-                            <div className="px-6 py-4 bg-bnb-gray/20 text-center">
-                              <p className="text-gray-400 text-sm">
-                                Showing {payments.length} of {totalTransactions} transactions
-                                <span className="text-bnb-yellow ml-2 cursor-pointer hover:underline">Load more</span>
-                              </p>
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()}
 
                         {/* Invoice Reference Pattern Info */}
                         <div className="mt-6 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">

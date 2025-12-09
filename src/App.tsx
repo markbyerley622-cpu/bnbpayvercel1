@@ -72,7 +72,7 @@ function HomePage() {
   useEffect(() => {
     setMounted(true);
 
-    // Detect current network from MetaMask
+    // Detect current network from wallet
     getCurrentNetwork().then(detectedNetwork => {
       setNetwork(detectedNetwork);
     });

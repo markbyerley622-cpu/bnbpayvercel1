@@ -988,28 +988,28 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
             <p className="text-gray-400 mb-8">Your payment has been sent to the merchant.</p>
 
             {/* Payment Details */}
-            <div className="card-shadow rounded-2xl p-6 mb-6">
-              <div className="flex items-center justify-center space-x-3 mb-4">
-                <span className="text-4xl font-bold text-green-500">{displayPaidAmount}</span>
+            <div className="card-shadow rounded-2xl p-4 sm:p-6 mb-6 max-w-md mx-auto w-full">
+              <div className="flex items-center justify-center space-x-2 sm:space-x-3 mb-4">
+                <span className="text-2xl sm:text-4xl font-bold text-green-500 break-all">{displayPaidAmount}</span>
                 <img
                   src={getTokenImagePath(displayPaidToken)}
                   alt={displayPaidToken}
-                  className="h-10 w-10 rounded-full"
+                  className="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0"
                 />
               </div>
               {displayPaidToken !== paymentToken && (
-                <p className="text-gray-500 text-xs mb-2">
+                <p className="text-gray-500 text-xs mb-2 text-center">
                   Settled as {paymentAmount} {paymentToken}
                 </p>
               )}
-              <p className="text-gray-400 text-sm mb-4">Paid to {formatAddress(merchantAddress)}</p>
+              <p className="text-gray-400 text-sm mb-4 text-center">Paid to {formatAddress(merchantAddress)}</p>
 
               {txHash && (
                 <a
                   href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm"
+                  className="inline-flex items-center justify-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm w-full"
                 >
                   <span>View Transaction</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1021,15 +1021,15 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
               {/* Invoice Link - always visible */}
               <div className="mt-4 pt-4 border-t border-bnb-gray/30">
                 <p className="text-gray-500 text-xs mb-2">Invoice Link</p>
-                <div className="flex items-center space-x-2">
-                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-3 py-2 rounded-lg overflow-hidden text-ellipsis whitespace-nowrap">
-                    {window.location.href}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-3 py-2 rounded-lg overflow-hidden break-all min-w-0">
+                    {window.location.href.length > 50 ? window.location.href.slice(0, 50) + '...' : window.location.href}
                   </code>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.href);
                     }}
-                    className="px-3 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all text-xs font-semibold flex-shrink-0"
+                    className="px-3 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all text-xs font-semibold flex-shrink-0 w-full sm:w-auto"
                   >
                     Copy
                   </button>

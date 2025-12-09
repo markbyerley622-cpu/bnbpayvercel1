@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { SubscriptionData } from '../lib/types';
 import { SubscriptionModal } from './SubscriptionModal';
-import { createSubscriptionPlan, isMetaMaskInstalled, type NetworkType } from '../lib/web3';
+import { createSubscriptionPlan, isWalletInstalled, type NetworkType } from '../lib/web3';
 import { convertToUSD, getPaymentOptions, getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
 import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
 import { AlertBanner } from './ErrorUI';
@@ -96,11 +96,11 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
       return;
     }
 
-    // Check if MetaMask is installed
-    if (!isMetaMaskInstalled()) {
+    // Check if Web3 wallet is installed
+    if (!isWalletInstalled()) {
       setError({
         code: ErrorCode.WALLET_NOT_CONNECTED,
-        message: 'Please install MetaMask to create subscriptions.',
+        message: 'Please install a Web3 wallet (OKX, Trust Wallet, etc.) to create subscriptions.',
         referenceId: generateReferenceId(),
         showRetry: false,
       });
@@ -113,7 +113,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
       // Get connected wallet address
       const { ethers } = await import('ethers');
       if (!window.ethereum) {
-        throw new Error('MetaMask not available');
+        throw new Error('No Web3 wallet available');
       }
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -126,7 +126,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
       // Get all payment options for this USD amount
       const acceptedTokens = getPaymentOptions(usdValue, network);
 
-      // Create subscription plan on-chain via MetaMask
+      // Create subscription plan on-chain via Web3 wallet
       const { planId, txHash } = await createSubscriptionPlan({
         planName: formData.planName,
         price: usdValue.toFixed(2),

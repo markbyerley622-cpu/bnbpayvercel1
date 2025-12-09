@@ -331,7 +331,7 @@ export function CalendarPage() {
               </div>
               <h2 className="text-3xl font-bold text-white mb-4">Connect Your Wallet</h2>
               <p className="text-gray-400 text-lg">
-                Connect your MetaMask wallet to view your payment calendar
+                Connect your wallet to view your payment calendar
               </p>
             </div>
           ) : (

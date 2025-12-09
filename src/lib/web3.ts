@@ -1,6 +1,6 @@
 /**
  * Web3 Integration for BNBPay USD1 Payments
- * Connects to MetaMask and interacts with PaymentRegistry and SubscriptionManager contracts
+ * Connects to any Web3 wallet (OKX, Trust, MetaMask, etc.) and interacts with PaymentRegistry and SubscriptionManager contracts
  */
 
 import { ethers } from 'ethers';
@@ -123,17 +123,24 @@ export const BNB_PAY_ROUTER_ABI = [
 ];
 
 /**
- * Check if MetaMask is installed
+ * Check if a Web3 wallet is installed (OKX, Trust, MetaMask, etc.)
+ */
+export function isWalletInstalled(): boolean {
+  return typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
+}
+
+/**
+ * @deprecated Use isWalletInstalled instead
  */
 export function isMetaMaskInstalled(): boolean {
-  return typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
+  return isWalletInstalled();
 }
 
 /**
  * Get ethers provider
  */
 export function getProvider(): ethers.BrowserProvider | null {
-  if (!isMetaMaskInstalled() || !window.ethereum) {
+  if (!isWalletInstalled() || !window.ethereum) {
     return null;
   }
   return new ethers.BrowserProvider(window.ethereum as ethers.Eip1193Provider);
@@ -143,8 +150,8 @@ export function getProvider(): ethers.BrowserProvider | null {
  * Switch to specific network (mainnet or testnet)
  */
 export async function switchToNetwork(network: NetworkType): Promise<boolean> {
-  if (!isMetaMaskInstalled() || !window.ethereum) {
-    throw new Error('MetaMask is not installed');
+  if (!isWalletInstalled() || !window.ethereum) {
+    throw new Error('No Web3 wallet found. Please install OKX, Trust Wallet, or another compatible wallet.');
   }
 
   const config = NETWORKS[network];
@@ -190,10 +197,10 @@ export async function switchToBSCTestnet(): Promise<boolean> {
 }
 
 /**
- * Get current network from MetaMask
+ * Get current network from wallet
  */
 export async function getCurrentNetwork(): Promise<NetworkType> {
-  if (!isMetaMaskInstalled() || !window.ethereum) {
+  if (!isWalletInstalled() || !window.ethereum) {
     return 'testnet'; // Default
   }
 
@@ -210,11 +217,11 @@ export async function getCurrentNetwork(): Promise<NetworkType> {
 }
 
 /**
- * Connect to MetaMask wallet
+ * Connect to Web3 wallet (OKX, Trust, MetaMask, etc.)
  */
 export async function connectWallet(network: NetworkType = 'testnet'): Promise<string> {
-  if (!isMetaMaskInstalled() || !window.ethereum) {
-    throw new Error('MetaMask is not installed. Please install MetaMask to continue.');
+  if (!isWalletInstalled() || !window.ethereum) {
+    throw new Error('No Web3 wallet found. Please install OKX, Trust Wallet, or another compatible wallet.');
   }
 
   try {
@@ -562,7 +569,7 @@ export async function processInvoicePayment(params: {
  * Get wallet address
  */
 export async function getWalletAddress(): Promise<string | null> {
-  if (!isMetaMaskInstalled() || !window.ethereum) {
+  if (!isWalletInstalled() || !window.ethereum) {
     return null;
   }
 
@@ -841,8 +848,8 @@ export async function sendPayment(
   amount: string,
   token: string = 'BNB'
 ): Promise<string> {
-  if (!isMetaMaskInstalled()) {
-    throw new Error('MetaMask is not installed');
+  if (!isWalletInstalled()) {
+    throw new Error('No Web3 wallet found. Please install OKX, Trust Wallet, or another compatible wallet.');
   }
 
   try {

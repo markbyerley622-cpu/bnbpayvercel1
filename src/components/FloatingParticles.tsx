@@ -11,6 +11,18 @@ interface Particle {
   wobbleSpeed: number;
 }
 
+// Background glow orbs component
+export function GlowBackground() {
+  return (
+    <div className="glow-background">
+      <div className="glow-orb glow-orb-1"></div>
+      <div className="glow-orb glow-orb-2"></div>
+      <div className="glow-orb glow-orb-3"></div>
+      <div className="glow-orb glow-orb-4"></div>
+    </div>
+  );
+}
+
 export function FloatingParticles() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const animationRef = useRef<number>();
@@ -77,38 +89,44 @@ export function FloatingParticles() {
   }, []);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 1,
-        overflow: 'hidden',
-      }}
-    >
-      {particles.map(particle => {
-        const wobbleX = Math.sin(particle.wobble) * 20;
-        return (
-          <div
-            key={particle.id}
-            style={{
-              position: 'absolute',
-              left: `calc(${particle.x}% + ${wobbleX}px)`,
-              top: `${particle.y}%`,
-              width: `${particle.size}px`,
-              height: `${particle.size}px`,
-              borderRadius: '50%',
-              background: `radial-gradient(circle, rgba(240, 185, 11, ${particle.opacity}) 0%, rgba(240, 185, 11, ${particle.opacity * 0.5}) 40%, transparent 70%)`,
-              filter: 'blur(1px)',
-              transform: 'translate(-50%, -50%)',
-            }}
-          />
-        );
-      })}
-    </div>
+    <>
+      {/* Background Glow Orbs */}
+      <GlowBackground />
+
+      {/* Floating Particles */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 1,
+          overflow: 'hidden',
+        }}
+      >
+        {particles.map(particle => {
+          const wobbleX = Math.sin(particle.wobble) * 20;
+          return (
+            <div
+              key={particle.id}
+              style={{
+                position: 'absolute',
+                left: `calc(${particle.x}% + ${wobbleX}px)`,
+                top: `${particle.y}%`,
+                width: `${particle.size}px`,
+                height: `${particle.size}px`,
+                borderRadius: '50%',
+                background: `radial-gradient(circle, rgba(240, 185, 11, ${particle.opacity}) 0%, rgba(240, 185, 11, ${particle.opacity * 0.5}) 40%, transparent 70%)`,
+                filter: 'blur(1px)',
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          );
+        })}
+      </div>
+    </>
   );
 }
 
