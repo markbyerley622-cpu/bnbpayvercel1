@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { InvoiceCreator } from './components/InvoiceCreator';
 import { SubscriptionCreator } from './components/SubscriptionCreator';
 import { AgentFlowPanel } from './components/AgentFlowPanel';
@@ -6,13 +6,17 @@ import { Header } from './components/Header';
 import { InvoicePage } from './components/InvoicePage';
 import { SubscriptionPage } from './components/SubscriptionPage';
 import { FloatingParticles } from './components/FloatingParticles';
+import { GiftCardCreateForm, GiftCardRedeemPage, GiftCardHistory } from './giftcards';
 import type { InvoiceData, SubscriptionData } from './lib/types';
 import type { NetworkType } from './lib/web3';
-import { getCurrentNetwork } from './lib/web3';
+import { getCurrentNetwork, connectWallet } from './lib/web3';
 
-// Simple router to handle /invoice/:id and /subscription/:id routes
+// Route types
+type RouteType = 'home' | 'invoice' | 'subscription' | 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history';
+
+// Simple router to handle all routes
 function useRoute() {
-  const [route, setRoute] = useState<{ type: 'home' | 'invoice' | 'subscription'; id?: string }>({ type: 'home' });
+  const [route, setRoute] = useState<{ type: RouteType; id?: string }>({ type: 'home' });
 
   useEffect(() => {
     const handleRoute = () => {
@@ -29,6 +33,20 @@ function useRoute() {
       const subscriptionMatch = path.match(/^\/subscription\/(.+)$/);
       if (subscriptionMatch) {
         setRoute({ type: 'subscription', id: subscriptionMatch[1] });
+        return;
+      }
+
+      // Gift card routes
+      if (path === '/giftcard/create') {
+        setRoute({ type: 'giftcard-create' });
+        return;
+      }
+      if (path === '/giftcard/redeem' || path.startsWith('/giftcard/redeem?')) {
+        setRoute({ type: 'giftcard-redeem' });
+        return;
+      }
+      if (path === '/giftcard/history') {
+        setRoute({ type: 'giftcard-history' });
         return;
       }
 
@@ -57,8 +75,174 @@ function App() {
     return <SubscriptionPage subscriptionId={route.id} />;
   }
 
+  // Render gift card pages
+  if (route.type === 'giftcard-create') {
+    return <GiftCardPage pageType="create" />;
+  }
+  if (route.type === 'giftcard-redeem') {
+    return <GiftCardPage pageType="redeem" />;
+  }
+  if (route.type === 'giftcard-history') {
+    return <GiftCardPage pageType="history" />;
+  }
+
   // Render home page
   return <HomePage />;
+}
+
+// Gift Card Page wrapper component
+function GiftCardPage({ pageType }: { pageType: 'create' | 'redeem' | 'history' }) {
+  const [network, setNetwork] = useState<NetworkType>('testnet');
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    getCurrentNetwork().then(detectedNetwork => {
+      setNetwork(detectedNetwork);
+    });
+  }, []);
+
+  const handleConnectWallet = useCallback(async () => {
+    try {
+      const address = await connectWallet(network);
+      if (address) {
+        setWalletAddress(address);
+      }
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  }, [network]);
+
+  const networkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
+
+  const getTitle = () => {
+    switch (pageType) {
+      case 'create': return 'Create Gift Card';
+      case 'redeem': return 'Redeem Gift Card';
+      case 'history': return 'Gift Card History';
+    }
+  };
+
+  const getActivePage = (): 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history' => {
+    return `giftcard-${pageType}`;
+  };
+
+  return (
+    <>
+      <FloatingParticles />
+      <div className="min-h-screen bg-bnb-dark content-wrapper">
+        <Header
+          network={network}
+          onNetworkChange={setNetwork}
+          onWalletChanged={setWalletAddress}
+          title={getTitle()}
+          showNav={true}
+          activePage={getActivePage()}
+        />
+
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 md:py-12">
+          <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+            <div className="card-shadow rounded-2xl p-6 md:p-8">
+              {pageType === 'create' && (
+                <GiftCardCreateForm
+                  network={networkKey}
+                  walletAddress={walletAddress}
+                />
+              )}
+              {pageType === 'redeem' && (
+                <GiftCardRedeemPage
+                  network={networkKey}
+                  walletAddress={walletAddress}
+                  onConnectWallet={handleConnectWallet}
+                />
+              )}
+              {pageType === 'history' && (
+                <GiftCardHistory
+                  network={networkKey}
+                  walletAddress={walletAddress}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Education Section for Gift Cards */}
+          <div className={`mt-8 ${mounted ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: '0.3s' }}>
+            <GiftCardEducation />
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
+
+// Gift Card Education Component
+function GiftCardEducation() {
+  return (
+    <div className="card-shadow rounded-2xl p-6 md:p-8">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center">
+        <svg className="w-6 h-6 text-bnb-yellow mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+        </svg>
+        BNB Gift Cards + Gasless Payments
+      </h2>
+
+      <div className="space-y-4 text-gray-300">
+        <div>
+          <h3 className="text-bnb-yellow font-semibold mb-2">What are BNB Pay Gift Cards?</h3>
+          <p className="text-sm">
+            BNB Pay Gift Cards allow you to send crypto as a gift to anyone. Create a card with any supported token (BNB, USDT, USDC, USD1, etc.), share the redemption link, and the recipient can claim the funds directly to their wallet.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-bnb-yellow font-semibold mb-2">Gasless Payments with BNBPay Relayer</h3>
+          <p className="text-sm">
+            Our relayer service handles gas fees for you! When you create or redeem a gift card, BNBPay pays the transaction gas, making the experience completely gasless for end users. This uses EIP-2612 permits and EIP-3009 authorization for secure, trustless transfers.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-bnb-yellow font-semibold mb-2">How It Works</h3>
+          <ol className="text-sm space-y-2 list-decimal list-inside">
+            <li>Create a gift card by specifying amount and token</li>
+            <li>Sign the authorization (no gas required)</li>
+            <li>Share the unique redemption link or QR code</li>
+            <li>Recipient connects wallet and claims funds</li>
+            <li>BNBPay relayer executes the transfer gaslessly</li>
+          </ol>
+        </div>
+
+        <div>
+          <h3 className="text-bnb-yellow font-semibold mb-2">Supported Wallets</h3>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {['MetaMask', 'Trust Wallet', 'OKX Wallet', 'Binance Web3', 'Rabby', 'Safe Wallet'].map((wallet) => (
+              <span key={wallet} className="px-3 py-1 bg-bnb-gray rounded-full text-xs text-gray-300 border border-gray-700">
+                {wallet}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-gray-700">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs text-gray-400">Multi-token support</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-bnb-yellow rounded-full animate-pulse"></div>
+              <span className="text-xs text-gray-400">X402 Flex Protocol</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-xs text-gray-400">Gasless transfers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HomePage() {
@@ -194,9 +378,10 @@ function HomePage() {
           </div>
 
           {/* Content Area */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left: Form */}
-            <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'} relative group`} style={{animationDelay: '0.4s'}}>
+          {/* On mobile in agent mode, show AgentFlowPanel first and prominently */}
+          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${mode === 'agent' ? 'flex flex-col-reverse lg:flex-row lg:grid' : ''}`}>
+            {/* Left: Form - Hidden on mobile when in agent mode */}
+            <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'} relative group ${mode === 'agent' ? 'hidden lg:block' : ''}`} style={{animationDelay: '0.4s'}}>
               <div className="card-shadow rounded-2xl p-8">
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center">
                   {activeTab === 'invoice' ? (
@@ -249,8 +434,8 @@ function HomePage() {
               )}
             </div>
 
-            {/* Right: Info/Agent Panel */}
-            <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`} style={{animationDelay: '0.5s'}}>
+            {/* Right: Info/Agent Panel - Shown first on mobile in agent mode */}
+            <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'} ${mode === 'agent' ? 'order-first lg:order-none' : ''}`} style={{animationDelay: '0.5s'}}>
               {mode === 'basic' ? (
                 <div className="card-shadow rounded-2xl p-8 h-full">
                   <h2 className="text-2xl font-bold text-white mb-6">What BNBPay Provides</h2>

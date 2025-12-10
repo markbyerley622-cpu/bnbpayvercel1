@@ -7,6 +7,11 @@ import { useToast } from '../contexts/ToastContext';
 import type { InvoiceData, SubscriptionData } from '../lib/types';
 import type { NetworkType } from '../lib/web3';
 import { getCurrentNetwork, formatAddress } from '../lib/web3';
+// Gift Card imports
+import type { BNBPayCard, NetworkKey } from '../giftcards/types';
+import { getCardsByMerchant, generateRedemptionLink } from '../giftcards/services/card-storage';
+import { formatCardAmount, formatCardStatus, isCardValid, giftCardApi } from '../giftcards/services/giftcard-api';
+import { getTokenImagePath as getGiftCardTokenImage } from '../giftcards/services/tokens';
 
 // Type guards
 function isInvoice(item: InvoiceData | SubscriptionData | null): item is InvoiceData {
@@ -48,7 +53,7 @@ export function HistoryPage() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionData[]>([]);
-  const [activeTab, setActiveTab] = useState<'invoices' | 'subscriptions' | 'analytics'>('invoices');
+  const [activeTab, setActiveTab] = useState<'invoices' | 'subscriptions' | 'giftcards' | 'analytics'>('invoices');
   const [mounted, setMounted] = useState(false);
   const [selectedItemForMCP, setSelectedItemForMCP] = useState<InvoiceData | SubscriptionData | null>(null);
   const [txPage, setTxPage] = useState(1);
@@ -56,11 +61,19 @@ export function HistoryPage() {
   // Pagination states for invoices and subscriptions
   const [invoicePage, setInvoicePage] = useState(1);
   const [subscriptionPage, setSubscriptionPage] = useState(1);
+  const [giftCardPage, setGiftCardPage] = useState(1);
 
   // Search states
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [subscriptionSearchQuery, setSubscriptionSearchQuery] = useState('');
   const [txSearchQuery, setTxSearchQuery] = useState('');
+  const [giftCardSearchQuery, setGiftCardSearchQuery] = useState('');
+
+  // Gift card states
+  const [giftCards, setGiftCards] = useState<BNBPayCard[]>([]);
+  const [giftCardFilter, setGiftCardFilter] = useState<'all' | 'active' | 'redeemed' | 'expired'>('all');
+  const [cancellingCardId, setCancellingCardId] = useState<string | null>(null);
+  const [selectedCardForDetails, setSelectedCardForDetails] = useState<BNBPayCard | null>(null);
 
   // Cancel invoice states
   const [cancellingInvoiceId, setCancellingInvoiceId] = useState<string | null>(null);
@@ -92,11 +105,32 @@ export function HistoryPage() {
   useEffect(() => {
     if (walletAddress) {
       loadHistory();
+      loadGiftCards();
     } else {
       setInvoices([]);
       setSubscriptions([]);
+      setGiftCards([]);
     }
   }, [walletAddress]);
+
+  // Load gift cards for this wallet
+  const loadGiftCards = useCallback(() => {
+    if (!walletAddress) {
+      setGiftCards([]);
+      return;
+    }
+
+    const networkKey: NetworkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
+    let cards = getCardsByMerchant(walletAddress);
+
+    // Filter by current network
+    cards = cards.filter(card => card.network === networkKey);
+
+    // Sort by createdAt (newest first)
+    cards.sort((a, b) => b.createdAt - a.createdAt);
+
+    setGiftCards(cards);
+  }, [walletAddress, network]);
 
   // Also reload when window gains focus (in case invoice was created in another tab)
   useEffect(() => {
@@ -104,11 +138,12 @@ export function HistoryPage() {
       if (walletAddress) {
         console.log('Window focused, reloading history...');
         loadHistory();
+        loadGiftCards();
       }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [walletAddress]);
+  }, [walletAddress, loadGiftCards]);
 
   const loadHistory = async () => {
     if (!walletAddress) return;
@@ -411,10 +446,131 @@ export function HistoryPage() {
     });
   };
 
+  // Handle gift card cancellation
+  const handleCancelGiftCard = useCallback(async (cardId: string) => {
+    setCancellingCardId(cardId);
+    try {
+      await giftCardApi.cancelGiftCard(cardId);
+      toast.success('Gift card cancelled successfully');
+      loadGiftCards();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to cancel gift card';
+      toast.error(message);
+    } finally {
+      setCancellingCardId(null);
+    }
+  }, [toast, loadGiftCards]);
+
+  // Copy gift card link
+  const handleCopyGiftCardLink = useCallback((card: BNBPayCard) => {
+    const url = generateRedemptionLink(card);
+    navigator.clipboard.writeText(url);
+    toast.success('Redemption link copied!');
+  }, [toast]);
+
+  // Gift card stats
+  const giftCardStats = {
+    total: giftCards.length,
+    active: giftCards.filter(c => c.status === 'active' && isCardValid(c)).length,
+    redeemed: giftCards.filter(c => c.status === 'redeemed').length,
+    expired: giftCards.filter(c =>
+      c.status === 'expired' ||
+      (c.expiresAt && c.expiresAt < Date.now() && c.status === 'active')
+    ).length,
+  };
+
   return (
     <>
       {/* Confirm Modal */}
       <ConfirmModal {...confirmModal.modalProps} />
+
+      {/* Gift Card Details Modal */}
+      {selectedCardForDetails && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedCardForDetails(null)}
+        >
+          <div
+            className="bg-bnb-dark border border-gray-700 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-white">Gift Card Details</h3>
+                <button
+                  onClick={() => setSelectedCardForDetails(null)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="text-center mb-6">
+                <img
+                  src={getGiftCardTokenImage(selectedCardForDetails.token)}
+                  alt={selectedCardForDetails.token}
+                  className="w-20 h-20 mx-auto rounded-full mb-4"
+                />
+                <p className="text-3xl font-bold text-bnb-yellow">
+                  {formatCardAmount(selectedCardForDetails.amount, selectedCardForDetails.token)}
+                </p>
+                <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${
+                  formatCardStatus(selectedCardForDetails.status).label === 'Active'
+                    ? 'bg-green-500/20 text-green-400'
+                    : formatCardStatus(selectedCardForDetails.status).label === 'Redeemed'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'bg-gray-500/20 text-gray-400'
+                }`}>
+                  {formatCardStatus(selectedCardForDetails.status).label}
+                </span>
+              </div>
+
+              <div className="space-y-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Card ID:</span>
+                  <span className="text-white font-mono text-xs">{selectedCardForDetails.cardId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Access Code:</span>
+                  <span className="text-white font-mono">{selectedCardForDetails.accessCode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Created:</span>
+                  <span className="text-white">{new Date(selectedCardForDetails.createdAt).toLocaleString()}</span>
+                </div>
+                {selectedCardForDetails.expiresAt && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Expires:</span>
+                    <span className="text-white">{new Date(selectedCardForDetails.expiresAt).toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedCardForDetails.message && (
+                  <div>
+                    <span className="text-gray-400 block mb-1">Message:</span>
+                    <span className="text-white italic">"{selectedCardForDetails.message}"</span>
+                  </div>
+                )}
+              </div>
+
+              {selectedCardForDetails.status === 'active' && isCardValid(selectedCardForDetails) && (
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => {
+                      handleCopyGiftCardLink(selectedCardForDetails);
+                      setSelectedCardForDetails(null);
+                    }}
+                    className="flex-1 px-4 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all"
+                  >
+                    Copy Redemption Link
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Particles Background */}
       <FloatingParticles />
@@ -459,50 +615,65 @@ export function HistoryPage() {
               </div>
 
               {/* Tab Navigation */}
-              <div className={`flex items-center justify-center space-x-4 mb-12 ${mounted ? 'animate-fade-in' : 'opacity-0'}`}>
+              <div className={`flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-12 ${mounted ? 'animate-fade-in' : 'opacity-0'}`}>
                 <button
                   onClick={() => setActiveTab('invoices')}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all ${
                     activeTab === 'invoices'
                       ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
                       : 'bg-bnb-gray/50 text-gray-400 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
-                    <span>Invoices ({invoices.length})</span>
+                    <span className="text-sm sm:text-base">Invoices ({invoices.length})</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveTab('subscriptions')}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all ${
                     activeTab === 'subscriptions'
                       ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
                       : 'bg-bnb-gray/50 text-gray-400 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                     </svg>
-                    <span>Subscriptions ({subscriptions.length})</span>
+                    <span className="text-sm sm:text-base">Subscriptions ({subscriptions.length})</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('giftcards')}
+                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all ${
+                    activeTab === 'giftcards'
+                      ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
+                      : 'bg-bnb-gray/50 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                    </svg>
+                    <span className="text-sm sm:text-base">Gift Cards ({giftCards.length})</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveTab('analytics')}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all ${
                     activeTab === 'analytics'
                       ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
                       : 'bg-bnb-gray/50 text-gray-400 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
-                    <span>Analytics ({apiPaymentsData?.data?.length || 0})</span>
+                    <span className="text-sm sm:text-base">Analytics ({(apiPaymentsData?.data?.length || 0) + giftCardStats.redeemed})</span>
                     {apiLoading && (
                       <span className="w-2 h-2 bg-bnb-yellow rounded-full animate-pulse"></span>
                     )}
@@ -1289,6 +1460,379 @@ export function HistoryPage() {
                 </div>
               )}
 
+              {/* Gift Cards Tab */}
+              {activeTab === 'giftcards' && (
+                <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+                  {/* Gift Card Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-bnb-gray/30 rounded-xl p-4 border border-gray-700 text-center">
+                      <p className="text-2xl font-bold text-white">{giftCardStats.total}</p>
+                      <p className="text-sm text-gray-400">Total</p>
+                    </div>
+                    <div className="bg-bnb-gray/30 rounded-xl p-4 border border-gray-700 text-center">
+                      <p className="text-2xl font-bold text-green-400">{giftCardStats.active}</p>
+                      <p className="text-sm text-gray-400">Active</p>
+                    </div>
+                    <div className="bg-bnb-gray/30 rounded-xl p-4 border border-gray-700 text-center">
+                      <p className="text-2xl font-bold text-blue-400">{giftCardStats.redeemed}</p>
+                      <p className="text-sm text-gray-400">Redeemed</p>
+                    </div>
+                    <div className="bg-bnb-gray/30 rounded-xl p-4 border border-gray-700 text-center">
+                      <p className="text-2xl font-bold text-gray-400">{giftCardStats.expired}</p>
+                      <p className="text-sm text-gray-400">Expired</p>
+                    </div>
+                  </div>
+
+                  {/* Gift Card Filters */}
+                  <div className="flex flex-wrap items-center gap-2 mb-6">
+                    {(['all', 'active', 'redeemed', 'expired'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => {
+                          setGiftCardFilter(f);
+                          setGiftCardPage(1);
+                        }}
+                        className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
+                          giftCardFilter === f
+                            ? 'bg-bnb-yellow text-bnb-dark'
+                            : 'bg-bnb-gray text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {f.charAt(0).toUpperCase() + f.slice(1)}
+                        {f !== 'all' && (
+                          <span className="ml-1.5 text-xs opacity-70">
+                            ({f === 'active' ? giftCardStats.active : f === 'redeemed' ? giftCardStats.redeemed : giftCardStats.expired})
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="mb-6">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search by card ID, access code, or amount..."
+                        value={giftCardSearchQuery}
+                        onChange={(e) => {
+                          setGiftCardSearchQuery(e.target.value);
+                          setGiftCardPage(1);
+                        }}
+                        className="w-full bg-bnb-gray/30 text-white placeholder-gray-500 px-4 py-3 pl-12 rounded-xl border border-bnb-gray focus:border-bnb-yellow focus:outline-none transition-colors"
+                      />
+                      <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                      </svg>
+                      {giftCardSearchQuery && (
+                        <button
+                          onClick={() => {
+                            setGiftCardSearchQuery('');
+                            setGiftCardPage(1);
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {(() => {
+                    // Filter gift cards
+                    const filteredCards = giftCards.filter(card => {
+                      // Status filter
+                      if (giftCardFilter === 'active' && !(card.status === 'active' && isCardValid(card))) return false;
+                      if (giftCardFilter === 'redeemed' && card.status !== 'redeemed') return false;
+                      if (giftCardFilter === 'expired') {
+                        const isExpired = card.status === 'expired' ||
+                          (card.expiresAt && card.expiresAt < Date.now() && card.status === 'active');
+                        if (!isExpired) return false;
+                      }
+
+                      // Search filter
+                      if (giftCardSearchQuery) {
+                        const query = giftCardSearchQuery.toLowerCase();
+                        return (
+                          card.cardId.toLowerCase().includes(query) ||
+                          card.accessCode.toLowerCase().includes(query) ||
+                          card.amount.includes(query) ||
+                          card.token.toLowerCase().includes(query) ||
+                          card.message?.toLowerCase().includes(query)
+                        );
+                      }
+                      return true;
+                    });
+
+                    // Pagination
+                    const totalPages = Math.ceil(filteredCards.length / ITEMS_PER_PAGE);
+                    const startIdx = (giftCardPage - 1) * ITEMS_PER_PAGE;
+                    const paginatedCards = filteredCards.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+                    if (giftCards.length === 0) {
+                      return (
+                        <div className="text-center py-20">
+                          <div className="w-20 h-20 bg-bnb-gray rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                            </svg>
+                          </div>
+                          <h3 className="text-xl font-bold text-white mb-2">No Gift Cards Yet</h3>
+                          <p className="text-gray-400 mb-6">Create your first gift card to get started</p>
+                          <a
+                            href="/giftcard/create"
+                            className="inline-block px-6 py-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all"
+                          >
+                            Create Gift Card
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    if (filteredCards.length === 0 && giftCardSearchQuery) {
+                      return (
+                        <div className="text-center py-12">
+                          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                          </svg>
+                          <h3 className="text-xl font-semibold text-gray-400">No results found</h3>
+                          <p className="text-gray-500 mt-2">No gift cards match "{giftCardSearchQuery}"</p>
+                          <button
+                            onClick={() => setGiftCardSearchQuery('')}
+                            className="mt-4 px-4 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all font-semibold"
+                          >
+                            Clear Search
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* Results count */}
+                        <div className="mb-4 text-gray-400 text-sm">
+                          Showing {startIdx + 1}-{Math.min(startIdx + ITEMS_PER_PAGE, filteredCards.length)} of {filteredCards.length} gift card{filteredCards.length !== 1 ? 's' : ''}
+                        </div>
+
+                        {/* Gift Cards List */}
+                        <div className="space-y-4">
+                          {paginatedCards.map((card) => (
+                            <div
+                              key={card.cardId}
+                              className="card-shadow rounded-2xl border border-gray-700 overflow-hidden hover:border-gray-600 transition-colors"
+                            >
+                              {/* Card Header */}
+                              <div className="p-4 sm:p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <img
+                                      src={getGiftCardTokenImage(card.token)}
+                                      alt={card.token}
+                                      className="w-12 h-12 rounded-full"
+                                    />
+                                    <div>
+                                      <p className="text-xl sm:text-2xl font-bold text-bnb-yellow">
+                                        {formatCardAmount(card.amount, card.token)}
+                                      </p>
+                                      <p className="text-sm text-gray-400">
+                                        Created {new Date(card.createdAt).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    card.status === 'active' && isCardValid(card)
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : card.status === 'redeemed'
+                                      ? 'bg-blue-500/20 text-blue-400'
+                                      : card.status === 'cancelled'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : 'bg-gray-500/20 text-gray-400'
+                                  }`}>
+                                    {formatCardStatus(card.status).label}
+                                  </span>
+                                </div>
+
+                                {/* Card Details */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm mb-4">
+                                  <div>
+                                    <p className="text-gray-500">Access Code</p>
+                                    <p className="text-white font-mono text-xs">{card.accessCode}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-gray-500">Expires</p>
+                                    <p className="text-white">
+                                      {card.expiresAt
+                                        ? new Date(card.expiresAt).toLocaleDateString()
+                                        : 'Never'
+                                      }
+                                    </p>
+                                  </div>
+                                  {card.message && (
+                                    <div className="col-span-2 sm:col-span-1">
+                                      <p className="text-gray-500">Message</p>
+                                      <p className="text-white text-xs truncate">{card.message}</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Redeemed Info */}
+                                {card.status === 'redeemed' && (
+                                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                      </svg>
+                                      <span className="text-blue-400 font-medium text-sm">Redeemed</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      {card.redeemedBy && (
+                                        <div>
+                                          <p className="text-gray-500">Redeemed By</p>
+                                          <p className="text-white font-mono">{formatAddress(card.redeemedBy)}</p>
+                                        </div>
+                                      )}
+                                      {card.redeemedAt && (
+                                        <div>
+                                          <p className="text-gray-500">Redeemed At</p>
+                                          <p className="text-white">{new Date(card.redeemedAt).toLocaleString()}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {card.txHash && (
+                                      <a
+                                        href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/tx/${card.txHash}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center mt-2 text-sm text-bnb-yellow hover:underline"
+                                      >
+                                        View Transaction
+                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                        </svg>
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Card Actions */}
+                                {card.status === 'active' && isCardValid(card) && (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      onClick={() => handleCopyGiftCardLink(card)}
+                                      className="px-4 py-2 text-sm font-medium text-bnb-yellow bg-bnb-yellow/10 hover:bg-bnb-yellow/20 rounded-lg transition-colors"
+                                    >
+                                      Copy Link
+                                    </button>
+                                    <button
+                                      onClick={() => setSelectedCardForDetails(card)}
+                                      className="px-4 py-2 text-sm font-medium text-gray-400 bg-bnb-gray hover:bg-bnb-gray/70 rounded-lg transition-colors"
+                                    >
+                                      View Details
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        confirmModal.showConfirm({
+                                          title: 'Cancel Gift Card?',
+                                          description: 'Are you sure you want to cancel this gift card? This action cannot be undone and the card will no longer be redeemable.',
+                                          confirmText: 'Yes, Cancel Card',
+                                          cancelText: 'Keep Card',
+                                          confirmVariant: 'danger',
+                                          onConfirm: () => handleCancelGiftCard(card.cardId),
+                                        });
+                                      }}
+                                      disabled={cancellingCardId === card.cardId}
+                                      className="px-4 py-2 text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                      {cancellingCardId === card.cardId ? 'Cancelling...' : 'Cancel'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-bnb-gray/20 rounded-xl">
+                            <p className="text-gray-400 text-sm">
+                              Page {giftCardPage} of {totalPages}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setGiftCardPage(Math.max(1, giftCardPage - 1))}
+                                disabled={giftCardPage === 1}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                <span className="text-sm">Prev</span>
+                              </button>
+                              <div className="flex items-center space-x-1">
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                  let pageNum;
+                                  if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (giftCardPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (giftCardPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                  } else {
+                                    pageNum = giftCardPage - 2 + i;
+                                  }
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setGiftCardPage(pageNum)}
+                                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                                        giftCardPage === pageNum
+                                          ? 'bg-bnb-yellow text-bnb-dark'
+                                          : 'bg-bnb-gray/50 text-gray-300 hover:bg-bnb-gray hover:text-white'
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                onClick={() => setGiftCardPage(Math.min(totalPages, giftCardPage + 1))}
+                                disabled={giftCardPage === totalPages}
+                                className="flex items-center space-x-1 px-3 py-2 bg-bnb-gray/50 hover:bg-bnb-yellow hover:text-bnb-dark text-gray-300 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <span className="text-sm">Next</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Create Gift Card CTA */}
+                        <div className="mt-6 p-4 bg-gradient-to-r from-bnb-yellow/10 to-amber-500/10 rounded-xl border border-bnb-yellow/20">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                              <h4 className="text-white font-medium mb-1">Create More Gift Cards</h4>
+                              <p className="text-gray-400 text-sm">Send crypto gifts with gasless redemption via BNBPay Relayer</p>
+                            </div>
+                            <a
+                              href="/giftcard/create"
+                              className="px-6 py-2.5 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-semibold rounded-xl transition-all whitespace-nowrap"
+                            >
+                              Create Gift Card
+                            </a>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Analytics Tab (from BNBPay API) */}
               {activeTab === 'analytics' && (
                 <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
@@ -1430,10 +1974,19 @@ export function HistoryPage() {
 
                     const getTokenColor = (symbol: string) => tokenColors[symbol] || 'from-gray-400 to-gray-500';
 
+                    // Calculate gift card volume (redeemed cards)
+                    const giftCardVolume = giftCards
+                      .filter(c => c.status === 'redeemed')
+                      .reduce((sum, c) => sum + parseFloat(c.amount), 0);
+
+                    // Combined totals
+                    const combinedTransactions = totalTransactions + giftCardStats.redeemed;
+                    const combinedVolume = totalVolume + giftCardVolume;
+
                     return (
                       <>
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        {/* Stats Cards - Combined Invoice/Subscription + Gift Card Analytics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
                           {/* Total Transactions */}
                           <div className="card-shadow rounded-2xl p-6 relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-bnb-yellow/10 to-transparent rounded-full -mr-16 -mt-16"></div>
@@ -1449,8 +2002,8 @@ export function HistoryPage() {
                                 </span>
                               </div>
                               <p className="text-gray-400 text-sm mb-1">Total Transactions</p>
-                              <p className="text-3xl font-bold text-white">{totalTransactions.toLocaleString()}</p>
-                              <p className="text-gray-500 text-xs mt-2">All-time settled payments</p>
+                              <p className="text-3xl font-bold text-white">{combinedTransactions.toLocaleString()}</p>
+                              <p className="text-gray-500 text-xs mt-2">Payments + Gift Cards</p>
                             </div>
                           </div>
 
@@ -1466,7 +2019,7 @@ export function HistoryPage() {
                                 </div>
                               </div>
                               <p className="text-gray-400 text-sm mb-1">Total Volume</p>
-                              <p className="text-3xl font-bold text-white">{totalVolume.toFixed(4)}</p>
+                              <p className="text-3xl font-bold text-white">{combinedVolume.toFixed(4)}</p>
                               <p className="text-gray-500 text-xs mt-2">Combined token value</p>
                             </div>
                           </div>
@@ -1485,6 +2038,26 @@ export function HistoryPage() {
                               <p className="text-gray-400 text-sm mb-1">Unique Addresses</p>
                               <p className="text-3xl font-bold text-white">{uniqueAddresses}</p>
                               <p className="text-gray-500 text-xs mt-2">Payers & merchants</p>
+                            </div>
+                          </div>
+
+                          {/* Gift Cards Stats */}
+                          <div className="card-shadow rounded-2xl p-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full -mr-16 -mt-16"></div>
+                            <div className="relative">
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                                  <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
+                                  </svg>
+                                </div>
+                                <span className="px-2 py-1 text-xs font-medium rounded bg-amber-500/20 text-amber-400">
+                                  Gasless
+                                </span>
+                              </div>
+                              <p className="text-gray-400 text-sm mb-1">Gift Cards</p>
+                              <p className="text-3xl font-bold text-white">{giftCardStats.total}</p>
+                              <p className="text-gray-500 text-xs mt-2">{giftCardStats.redeemed} redeemed / {giftCardStats.active} active</p>
                             </div>
                           </div>
                         </div>
@@ -1854,6 +2427,23 @@ export function HistoryPage() {
                               <p className="text-gray-400 text-xs">
                                 Payments are linked to invoices using the canonical reference format: <code className="text-blue-400 bg-blue-500/10 px-1 rounded">invoice:{'<invoiceId>'}</code>.
                                 When creating payments, ensure your referenceData matches this pattern for automatic invoice status updates.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Gasless Relayer Info */}
+                        <div className="mt-4 p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20">
+                          <div className="flex items-start space-x-3">
+                            <svg className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            <div>
+                              <p className="text-white font-medium text-sm mb-1">Gasless Relayer API</p>
+                              <p className="text-gray-400 text-xs">
+                                All transactions (invoices, subscriptions, and gift cards) are processed through the <span className="text-amber-400">BNBPay Gasless Relayer</span>.
+                                The relayer sponsors gas fees for recipients, enabling seamless on-chain payments without requiring users to hold BNB for gas.
+                                Gift card redemptions use the same relayer infrastructure as regular payments.
                               </p>
                             </div>
                           </div>

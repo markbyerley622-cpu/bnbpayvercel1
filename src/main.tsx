@@ -12,19 +12,35 @@ import { ErrorBoundary, PageErrorFallback } from './components/ErrorBoundary.tsx
 // Import Toast context provider for global notifications
 import { ToastProvider } from './contexts/ToastContext.tsx'
 
+// Import Wallet Provider with Wagmi + React Query
+import { WalletProvider } from './components/WalletConnection'
+
+// Import TokenImage preloader for better UX
+import { TokenImagePreloader } from './components/TokenImage.tsx'
+
+// Import token preload function
+import { preloadTokenImages } from './lib/price-utils.ts'
+
+// Preload token images early
+preloadTokenImages('testnet')
+preloadTokenImages('mainnet')
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ToastProvider>
-      <ErrorBoundary
-        fallback={
-          <PageErrorFallback
-            onRetry={() => window.location.reload()}
-            onGoHome={() => window.location.href = '/'}
-          />
-        }
-      >
-        <App />
-      </ErrorBoundary>
+      <WalletProvider>
+        <ErrorBoundary
+          fallback={
+            <PageErrorFallback
+              onRetry={() => window.location.reload()}
+              onGoHome={() => window.location.href = '/'}
+            />
+          }
+        >
+          <TokenImagePreloader />
+          <App />
+        </ErrorBoundary>
+      </WalletProvider>
     </ToastProvider>
   </React.StrictMode>,
 )
