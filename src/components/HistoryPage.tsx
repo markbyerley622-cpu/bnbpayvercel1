@@ -566,8 +566,14 @@ export function HistoryPage() {
                   </div>
 
                   {(() => {
-                    // Filter invoices based on search
-                    const filteredInvoices = invoices.filter((invoice) => {
+                    // Sort invoices by createdAt (most recent first), then filter based on search
+                    const sortedInvoices = [...invoices].sort((a, b) => {
+                      const aTime = a.createdAt || 0;
+                      const bTime = b.createdAt || 0;
+                      return bTime - aTime; // Descending order (newest first)
+                    });
+
+                    const filteredInvoices = sortedInvoices.filter((invoice) => {
                       if (!invoiceSearchQuery) return true;
                       const query = invoiceSearchQuery.toLowerCase();
                       return (
@@ -724,9 +730,27 @@ export function HistoryPage() {
                               </div>
                             </div>
                           </div>
+                          {/* Accepted Tokens Section for Invoices */}
+                          {invoice.allowedTokens && invoice.allowedTokens.length > 0 && (
+                            <div className="p-3 sm:p-4 bg-bnb-yellow/5 border border-bnb-yellow/20 rounded-xl mb-4">
+                              <p className="text-gray-400 text-xs sm:text-sm mb-2">Accepted Payment Tokens</p>
+                              <div className="flex flex-wrap gap-2">
+                                {invoice.allowedTokens.map((token: string) => (
+                                  <div key={token} className="flex items-center gap-1.5 bg-bnb-gray/50 px-2 py-1 rounded-lg">
+                                    <img
+                                      src={getTokenImagePath(token as any)}
+                                      alt={token}
+                                      className="h-4 w-4 rounded-full"
+                                    />
+                                    <span className="text-xs font-medium text-white">{token}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-bnb-gray">
                             <div>
-                              <p className="text-gray-500 text-sm mb-1">Payment Token</p>
+                              <p className="text-gray-500 text-sm mb-1">Settlement Token</p>
                               <div className="flex items-center space-x-2">
                                 <img
                                   src={getTokenImagePath(invoice.paymentToken || 'BNB')}
@@ -978,8 +1002,14 @@ export function HistoryPage() {
                   </div>
 
                   {(() => {
-                    // Filter subscriptions based on search
-                    const filteredSubscriptions = subscriptions.filter((subscription) => {
+                    // Sort subscriptions by createdAt (most recent first), then filter based on search
+                    const sortedSubscriptions = [...subscriptions].sort((a, b) => {
+                      const aTime = a.createdAt || 0;
+                      const bTime = b.createdAt || 0;
+                      return bTime - aTime; // Descending order (newest first)
+                    });
+
+                    const filteredSubscriptions = sortedSubscriptions.filter((subscription) => {
                       if (!subscriptionSearchQuery) return true;
                       const query = subscriptionSearchQuery.toLowerCase();
                       return (
@@ -1080,10 +1110,28 @@ export function HistoryPage() {
                               />
                               <div>
                                 <p className="text-white font-semibold text-sm sm:text-base">{getTokenDisplayName(subscription.settlement || subscription.paymentToken || 'BNB')}</p>
-                                <p className="text-gray-400 text-xs sm:text-sm">Payment token</p>
+                                <p className="text-gray-400 text-xs sm:text-sm">Settlement token</p>
                               </div>
                             </div>
                           </div>
+                          {/* Accepted Tokens Section */}
+                          {subscription.allowedTokens && subscription.allowedTokens.length > 0 && (
+                            <div className="p-3 sm:p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl mb-4">
+                              <p className="text-gray-400 text-xs sm:text-sm mb-2">Accepted Payment Tokens</p>
+                              <div className="flex flex-wrap gap-2">
+                                {subscription.allowedTokens.map((token: string) => (
+                                  <div key={token} className="flex items-center gap-1.5 bg-bnb-gray/50 px-2 py-1 rounded-lg">
+                                    <img
+                                      src={getTokenImagePath(token as any)}
+                                      alt={token}
+                                      className="h-4 w-4 rounded-full"
+                                    />
+                                    <span className="text-xs font-medium text-white">{token}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             {subscription.txHash && (
                               <div>
@@ -1370,14 +1418,14 @@ export function HistoryPage() {
                       'XUSD': '/xusd-removebg-preview.png',
                     };
 
-                    // Color mapping for tokens
+                    // Color mapping for tokens (yellow/purple theme, no pink)
                     const tokenColors: Record<string, string> = {
                       'BNB': 'from-bnb-yellow to-amber-500',
                       'USDT': 'from-green-400 to-emerald-500',
                       'USDC': 'from-blue-400 to-blue-500',
-                      'USD1': 'from-purple-400 to-purple-500',
+                      'USD1': 'from-purple-500 to-purple-600',
                       'WUSD': 'from-cyan-400 to-cyan-500',
-                      'XUSD': 'from-pink-400 to-rose-500',
+                      'XUSD': 'from-purple-400 to-violet-500',
                     };
 
                     const getTokenColor = (symbol: string) => tokenColors[symbol] || 'from-gray-400 to-gray-500';

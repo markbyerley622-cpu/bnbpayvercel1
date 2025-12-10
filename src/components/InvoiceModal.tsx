@@ -16,9 +16,11 @@ export function InvoiceModal({ invoice, onClose }: InvoiceModalProps) {
   const [txHash, setTxHash] = useState<string | undefined>(invoice.txHash);
   const toast = useToast();
 
-  // Get all supported tokens for displaying accepted payment methods
+  // Get accepted tokens from the invoice (selected by invoicer) or fall back to all network tokens
   const network = invoice.paymentToken && isTestnetToken(invoice.paymentToken as Token) ? 'testnet' : 'mainnet';
-  const acceptedTokens = getTokensForNetwork(network);
+  const acceptedTokens = invoice.allowedTokens && invoice.allowedTokens.length > 0
+    ? invoice.allowedTokens
+    : getTokensForNetwork(network);
 
   // Generate QR code for payment link URL
   // Uses the full payment link so any QR scanner can open the payment page
@@ -328,7 +330,9 @@ export function InvoiceModal({ invoice, onClose }: InvoiceModalProps) {
             </div>
 
             <div className="text-xs text-blue-600 border-t border-blue-200 pt-2">
-              • Pay in {getTokenDisplayName(invoice.settlement)} via BNBPayRouter
+              • Pay with {acceptedTokens.length === 1 ? getTokenDisplayName(acceptedTokens[0]) : 'any accepted token'} via BNBPayRouter
+              <br />
+              • Settlement in {getTokenDisplayName(invoice.settlement)}
               <br />
               • Real-time payment verification via PaymentRegistry
             </div>

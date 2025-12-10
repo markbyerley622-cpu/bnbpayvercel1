@@ -5,6 +5,7 @@ import { createSubscriptionPlan, isWalletInstalled, type NetworkType } from '../
 import { convertToUSD, getPaymentOptions, getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
 import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
 import { AlertBanner } from './ErrorUI';
+import { TokenSelector } from './TokenSelector';
 
 interface SubscriptionCreatorProps {
   network: NetworkType;
@@ -17,14 +18,17 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
     planName: '',
     price: '',
     interval: 'monthly' as 'monthly' | 'yearly',
-    token: availableTokens[0], // Default to first token
+    acceptedTokens: [availableTokens[0]] as Token[], // Default to first token (BNB)
   });
 
-  // Update token when network changes
+  // Update tokens when network changes
   useEffect(() => {
     const tokens = getTokensForNetwork(network);
-    setFormData(prev => ({ ...prev, token: tokens[0] }));
+    setFormData(prev => ({ ...prev, acceptedTokens: [tokens[0]] }));
   }, [network]);
+
+  // Get the primary settlement token (first selected or BNB)
+  const primaryToken = formData.acceptedTokens.length > 0 ? formData.acceptedTokens[0] : 'BNB';
 
   const [loading, setLoading] = useState(false);
   const [generatedSubscription, setGeneratedSubscription] = useState<SubscriptionData | null>(null);
@@ -54,6 +58,10 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
 
     if (!['monthly', 'yearly'].includes(formData.interval)) {
       errors.interval = 'Please select a billing interval';
+    }
+
+    if (formData.acceptedTokens.length === 0) {
+      errors.tokens = 'Please select at least one token to accept';
     }
 
     setFieldErrors(errors);
@@ -121,17 +129,17 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
 
       // Convert token price to USD1 equivalent
       const tokenPrice = parseFloat(formData.price);
-      const usdValue = convertToUSD(formData.token as Token, tokenPrice);
+      const usdValue = convertToUSD(primaryToken as Token, tokenPrice);
 
       // Get all payment options for this USD amount
-      const acceptedTokens = getPaymentOptions(usdValue, network);
+      const acceptedTokenOptions = getPaymentOptions(usdValue, network);
 
       // Create subscription plan on-chain via Web3 wallet
       const { planId, txHash } = await createSubscriptionPlan({
         planName: formData.planName,
         price: usdValue.toFixed(2),
         interval: formData.interval,
-        paymentToken: formData.token,
+        paymentToken: primaryToken,
       });
 
       console.log('Subscription plan created:', { planId, txHash });
@@ -145,10 +153,11 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
         m: merchantAddress, // merchant
         pn: formData.planName, // plan name
         p: formData.price, // price
-        t: formData.token, // token
+        t: primaryToken, // primary settlement token
         i: formData.interval, // interval
         pid: planId, // plan id
         c: createdAt, // created at
+        al: formData.acceptedTokens, // allowed tokens for payment
       };
       const encodedData = btoa(JSON.stringify(subscriptionDataForUrl));
       const baseUrl = window.location.origin;
@@ -156,17 +165,18 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
 
       const finalSubscription: SubscriptionData = {
         type: 'subscription',
-        currency: formData.token, // Settlement in selected token
+        currency: primaryToken, // Settlement in primary selected token
         planName: formData.planName,
         price: formData.price, // Settlement price in selected token
         price_usd1: usdValue.toFixed(2), // USD equivalent for reference
         interval: formData.interval,
         customerEmail: undefined,
-        supports_multi_token: false, // Single token settlement
-        settlement: formData.token, // Settles to selected token
-        paymentToken: formData.token as Token,
+        supports_multi_token: formData.acceptedTokens.length > 1, // Multi-token if more than one selected
+        settlement: primaryToken, // Settles to primary selected token
+        paymentToken: primaryToken as Token,
         paymentAmount: formData.price,
-        acceptedTokens,
+        acceptedTokens: acceptedTokenOptions,
+        allowedTokens: formData.acceptedTokens, // Tokens selected by creator
         subscriptionId,
         paymentLink,
         txHash,
@@ -194,7 +204,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
       handleError(err, {
         action: 'createSubscription',
         network,
-        tokenSelected: formData.token,
+        tokensSelected: formData.acceptedTokens,
         interval: formData.interval,
       });
     } finally {
@@ -257,33 +267,32 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
               step="0.01"
               min="0.01"
               required
-              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-40 ${
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-24 ${
                 fieldErrors.price ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
               }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2 border-l-2 border-bnb-yellow/20 pl-3">
               <img
-                src={getTokenImagePath(formData.token as Token)}
-                alt={formData.token}
+                src={getTokenImagePath(primaryToken as Token)}
+                alt={primaryToken}
                 className="h-6 w-6 rounded-full"
               />
-              <select
-                name="token"
-                value={formData.token}
-                onChange={handleChange}
-                className="bg-bnb-gray text-white pr-6 py-2 rounded-lg focus:outline-none cursor-pointer appearance-none font-semibold"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23F0B90B'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '1rem' }}
-              >
-                {availableTokens.map(token => (
-                  <option key={token} value={token}>{token}</option>
-                ))}
-              </select>
+              <span className="text-bnb-yellow font-semibold">{primaryToken}</span>
             </div>
           </div>
           {fieldErrors.price && (
             <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.price}</p>
           )}
         </div>
+
+        {/* Token Selection Cards - Multi-select */}
+        <TokenSelector
+          selectedTokens={formData.acceptedTokens}
+          onTokensChange={(tokens) => setFormData(prev => ({ ...prev, acceptedTokens: tokens }))}
+          network={network}
+          showBlurEffect={true}
+          multiSelect={true}
+        />
 
         <div className="form-group">
           <label className="block mb-2 text-gray-300 font-semibold text-sm">Billing Interval</label>
@@ -306,15 +315,22 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-4 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold text-lg rounded-xl transition-all btn-glow glow-effect disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          className="w-full py-4 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold text-base sm:text-lg rounded-xl transition-all btn-glow glow-effect disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 sm:space-x-3"
         >
           <span>{loading ? 'Creating Subscription...' : 'Create Subscription'}</span>
-          {!loading && <img src="/2.png" alt="Coin" className="h-6 w-6" />}
+          {!loading && <img src="/2.png" alt="Coin" className="h-8 w-8 sm:h-10 sm:w-10" />}
         </button>
 
         <div className="mt-4 p-4 bg-bnb-yellow/10 border border-bnb-yellow/20 rounded-xl text-sm">
           <p className="text-gray-300">
-            <strong className="text-bnb-yellow">x402 Flex Subscription:</strong> This subscription will be charged in <strong className="text-bnb-yellow">{formData.token}</strong> and settled directly to your wallet.
+            <strong className="text-bnb-yellow">x402 Flex Subscription:</strong>{' '}
+            {formData.acceptedTokens.length === 0 ? (
+              'Please select at least one token to accept.'
+            ) : formData.acceptedTokens.length === 1 ? (
+              <>This subscription accepts <strong className="text-bnb-yellow">{formData.acceptedTokens[0]}</strong> only.</>
+            ) : (
+              <>This subscription accepts <strong className="text-bnb-yellow">{formData.acceptedTokens.join(', ')}</strong>. Subscriber can choose any.</>
+            )}
           </p>
         </div>
       </form>

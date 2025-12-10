@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import type { SubscriptionData } from '../lib/types';
-import { getTokenImagePath } from '../lib/price-utils';
+import { getTokenImagePath, getTokenDisplayName, type Token } from '../lib/price-utils';
 import { useToast } from '../contexts/ToastContext';
 
 interface SubscriptionModalProps {
@@ -12,6 +12,11 @@ interface SubscriptionModalProps {
 export function SubscriptionModal({ subscription, onClose }: SubscriptionModalProps) {
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   const toast = useToast();
+
+  // Get accepted tokens from subscription (selected by creator)
+  const allowedTokens = subscription.allowedTokens && subscription.allowedTokens.length > 0
+    ? subscription.allowedTokens
+    : [subscription.settlement]; // Fall back to settlement token
 
   useEffect(() => {
     if (qrCanvasRef.current && subscription.paymentLink) {
@@ -145,44 +150,32 @@ export function SubscriptionModal({ subscription, onClose }: SubscriptionModalPr
             </p>
           </div>
 
-          {/* Payment Options */}
+          {/* Payment Options - Show only allowed tokens */}
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <h4 className="font-semibold text-purple-800 mb-3">
-              Recurring {subscription.price} {subscription.settlement} - Payment Details:
+              Recurring {subscription.price} {getTokenDisplayName(subscription.settlement as Token)}
             </h4>
 
-            {subscription.acceptedTokens && subscription.acceptedTokens.length > 0 ? (
-              <div className="space-y-2 mb-3">
-                {subscription.acceptedTokens.map((option) => (
-                  <div
-                    key={option.token}
-                    className="flex justify-between items-center py-2 px-3 bg-white rounded-lg border border-purple-100"
-                  >
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={getTokenImagePath(option.token)}
-                        alt={option.token}
-                        className="h-6 w-6 rounded-full"
-                      />
-                      <span className="font-semibold text-purple-900">{option.token}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-purple-900">
-                        {option.tokenAmount} {option.token}
-                      </div>
-                      <div className="text-xs text-purple-700">
-                        per {subscription.interval === 'monthly' ? 'month' : 'year'}
-                      </div>
-                    </div>
+            <div className="text-sm text-purple-700 space-y-2 mb-3">
+              <p className="font-semibold">Accepted Payment Tokens:</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                {allowedTokens.map(token => (
+                  <div key={token} className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-purple-200">
+                    <img
+                      src={getTokenImagePath(token as Token)}
+                      alt={getTokenDisplayName(token as Token)}
+                      className="h-5 w-5 rounded-full"
+                    />
+                    <span className="text-xs font-medium">{getTokenDisplayName(token as Token)}</span>
                   </div>
                 ))}
               </div>
-            ) : null}
+            </div>
 
             <div className="text-xs text-purple-700 border-t border-purple-200 pt-2 space-y-1">
+              <div>• Pay with {allowedTokens.length === 1 ? getTokenDisplayName(allowedTokens[0] as Token) : 'any accepted token'} via BNBPayRouter</div>
+              <div>• Settlement in {getTokenDisplayName(subscription.settlement as Token)}</div>
               <div>• Automatic recurring charges with retry logic</div>
-              <div>• Dunning management for failed payments</div>
-              <div>• Direct settlement to {subscription.settlement}</div>
               <div>• Webhook notifications for all events</div>
             </div>
           </div>

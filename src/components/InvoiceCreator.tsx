@@ -7,6 +7,8 @@ import { createInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { ethers } from 'ethers';
 import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
 import { AlertBanner } from './ErrorUI';
+import { TokenSelector } from './TokenSelector';
+import { DatePicker } from './DatePicker';
 
 interface InvoiceCreatorProps {
   network: NetworkType;
@@ -22,15 +24,18 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
     description: '',
     amount: '',
     dueDate: '',
-    token: availableTokens[0], // Default to first token (BNB)
+    acceptedTokens: [availableTokens[0]] as Token[], // Default to first token (BNB)
     payeeWalletAddress: '', // Wallet that will pay the invoice
   });
 
-  // Update token when network changes
+  // Update tokens when network changes
   useEffect(() => {
     const tokens = getTokensForNetwork(network);
-    setFormData(prev => ({ ...prev, token: tokens[0] }));
+    setFormData(prev => ({ ...prev, acceptedTokens: [tokens[0]] }));
   }, [network]);
+
+  // Get the primary settlement token (first selected or BNB)
+  const primaryToken = formData.acceptedTokens.length > 0 ? formData.acceptedTokens[0] : 'BNB';
 
   const [loading, setLoading] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState<InvoiceData | null>(null);
@@ -56,6 +61,10 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       errors.amount = 'Please enter a valid amount';
+    }
+
+    if (formData.acceptedTokens.length === 0) {
+      errors.tokens = 'Please select at least one token to accept';
     }
 
     // Validate payee wallet if provided
@@ -126,8 +135,8 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
     setLoading(true);
 
     try {
-      // Use the selected token for settlement
-      const settlementToken = formData.token as Token;
+      // Use the first selected token for settlement (primary token)
+      const settlementToken = primaryToken;
 
       // Step 1: Get connected wallet address (merchant/invoicer)
       if (!window.ethereum) {
@@ -230,9 +239,9 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
         supports_multi_token: true, // Can pay with any supported token
         settlement: settlementToken, // Settles to selected token
         referenceId: apiInvoice.reference,
-        paymentToken: formData.token as Token,
+        paymentToken: primaryToken,
         paymentAmount: formData.amount,
-        allowedTokens: tokenAllowlist, // All tokens that can be used for payment
+        allowedTokens: formData.acceptedTokens.length > 0 ? formData.acceptedTokens : tokenAllowlist, // Selected tokens or all if none
         payeeWalletAddress: formData.payeeWalletAddress || undefined,
         invoiceId: apiInvoice.invoiceId,
         paymentLink: '', // Will be set below with encoded data
@@ -257,12 +266,12 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
         id: apiInvoice.invoiceId,
         m: merchantAddress, // merchant
         a: formData.amount, // amount
-        t: formData.token, // token
+        t: primaryToken, // primary settlement token
         d: formData.description, // description
         dd: formData.dueDate || '', // due date
         pw: formData.payeeWalletAddress || '', // payee wallet
         c: Date.now(), // created at
-        al: tokenAllowlist, // allowed tokens for payment
+        al: formData.acceptedTokens.length > 0 ? formData.acceptedTokens : tokenAllowlist, // allowed tokens for payment
         ri: apiInvoice.resourceId || generatedResourceId, // resourceId for payment matching
         ref: reference, // reference string
       };
@@ -297,7 +306,7 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
       handleError(err, {
         action: 'createInvoice',
         network,
-        tokenSelected: formData.token,
+        tokensSelected: formData.acceptedTokens,
       });
     } finally {
       setLoading(false);
@@ -396,7 +405,7 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
         </div>
 
         <div className="form-group">
-          <label className="block mb-2 text-gray-300 font-semibold text-sm">Amount & Settlement Token</label>
+          <label className="block mb-2 text-gray-300 font-semibold text-sm">Amount</label>
           <div className="relative">
             <input
               type="number"
@@ -407,35 +416,32 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
               step="0.01"
               min="0.01"
               required
-              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-40 ${
+              className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none transition-colors pr-24 ${
                 fieldErrors.amount ? 'border-red-500' : 'border-bnb-gray focus:border-bnb-yellow'
               }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-2 border-l-2 border-bnb-yellow/20 pl-3">
               <img
-                src={getTokenImagePath(formData.token as Token)}
-                alt={formData.token}
+                src={getTokenImagePath(primaryToken)}
+                alt={primaryToken}
                 className="h-6 w-6 rounded-full"
               />
-              <select
-                name="token"
-                value={formData.token}
-                onChange={handleChange}
-                className="bg-bnb-gray text-white pr-6 py-2 rounded-lg focus:outline-none cursor-pointer appearance-none font-semibold"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23F0B90B'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '1rem' }}
-              >
-                {availableTokens.map(token => (
-                  <option key={token} value={token}>{token}</option>
-                ))}
-              </select>
+              <span className="text-bnb-yellow font-semibold">{primaryToken}</span>
             </div>
           </div>
-          {fieldErrors.amount ? (
+          {fieldErrors.amount && (
             <p className="mt-1 text-xs text-red-400 truncate">{fieldErrors.amount}</p>
-          ) : (
-            <p className="mt-2 text-xs text-gray-400">Invoice will be paid in {formData.token}</p>
           )}
         </div>
+
+        {/* Token Selection Cards - Multi-select */}
+        <TokenSelector
+          selectedTokens={formData.acceptedTokens}
+          onTokensChange={(tokens) => setFormData(prev => ({ ...prev, acceptedTokens: tokens }))}
+          network={network}
+          showBlurEffect={true}
+          multiSelect={true}
+        />
 
         <div className="form-group">
           <label className="block mb-2 text-gray-300 font-semibold text-sm">Payee Wallet Address (Optional)</label>
@@ -459,27 +465,33 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
 
         <div className="form-group">
           <label className="block mb-2 text-gray-300 font-semibold text-sm">Due Date (Optional)</label>
-          <input
-            type="date"
-            name="dueDate"
+          <DatePicker
             value={formData.dueDate}
-            onChange={handleChange}
-            className="w-full px-4 py-3 bg-bnb-gray border-2 border-bnb-gray text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors"
+            onChange={(value) => setFormData(prev => ({ ...prev, dueDate: value }))}
+            placeholder="Select due date"
+            minDate={new Date().toISOString().split('T')[0]}
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-4 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold text-lg rounded-xl transition-all btn-glow glow-effect disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-3"
+          className="w-full py-4 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold text-base sm:text-lg rounded-xl transition-all btn-glow glow-effect disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 sm:space-x-3"
         >
           <span>{loading ? 'Generating Invoice...' : 'Create Invoice'}</span>
-          {!loading && <img src="/2.png" alt="Coin" className="h-10 w-10" />}
+          {!loading && <img src="/2.png" alt="Coin" className="h-8 w-8 sm:h-10 sm:w-10" />}
         </button>
 
         <div className="mt-4 p-4 bg-bnb-yellow/10 border border-bnb-yellow/20 rounded-xl text-sm">
           <p className="text-gray-300">
-            <strong className="text-bnb-yellow">x402 Flex Payment:</strong> This invoice will be paid in <strong className="text-bnb-yellow">{formData.token}</strong> directly to your wallet.
+            <strong className="text-bnb-yellow">x402 Flex Payment:</strong>{' '}
+            {formData.acceptedTokens.length === 0 ? (
+              'Please select at least one token to accept.'
+            ) : formData.acceptedTokens.length === 1 ? (
+              <>This invoice accepts <strong className="text-bnb-yellow">{formData.acceptedTokens[0]}</strong> only.</>
+            ) : (
+              <>This invoice accepts <strong className="text-bnb-yellow">{formData.acceptedTokens.join(', ')}</strong>. Payer can choose any.</>
+            )}
             {formData.payeeWalletAddress && <span className="block mt-1">Payment restricted to: <code className="text-bnb-yellow">{formData.payeeWalletAddress.slice(0, 10)}...{formData.payeeWalletAddress.slice(-8)}</code></span>}
           </p>
         </div>

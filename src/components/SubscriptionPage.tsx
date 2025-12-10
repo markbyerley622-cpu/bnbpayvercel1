@@ -116,7 +116,8 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
           interval: urlData.i,
           planId: urlData.pid,
           createdAt: urlData.c,
-          supports_multi_token: false,
+          allowedTokens: urlData.al || [urlData.t], // Tokens selected by creator
+          supports_multi_token: urlData.al ? urlData.al.length > 1 : false,
           paymentLink: window.location.href,
         };
 
@@ -222,12 +223,17 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
     return formatAmount(tokenAmount, 2);
   };
 
-  // Get allowed tokens for this subscription
+  // Get allowed tokens for this subscription (selected by creator)
   const getAllowedTokens = (): Token[] => {
+    // First check allowedTokens (new field - selected by creator)
+    if (subscription?.allowedTokens && subscription.allowedTokens.length > 0) {
+      return subscription.allowedTokens as Token[];
+    }
+    // Fall back to acceptedTokens (legacy field)
     if (subscription?.acceptedTokens && subscription.acceptedTokens.length > 0) {
       return subscription.acceptedTokens.map(t => t.token);
     }
-    // Default to all network tokens
+    // Default to all network tokens (for old subscriptions without token selection)
     return getTokensForNetwork(network);
   };
 
@@ -897,7 +903,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                   ) : (
                     <>
                       <span>Pay {getPaymentAmountInToken(selectedPayToken)} {getTokenDisplayName(selectedPayToken)}</span>
-                      <img src="/2.png" alt="" className="h-8 w-8" />
+                      <img src="/2.png" alt="" className="h-10 w-10 sm:h-8 sm:w-8" />
                     </>
                   )}
                 </button>
@@ -1209,7 +1215,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                   ) : (
                     <>
                       <span>Pay {getPaymentAmountInToken(selectedPayToken)} {getTokenDisplayName(selectedPayToken)}</span>
-                      <img src="/2.png" alt="" className="h-8 w-8" />
+                      <img src="/2.png" alt="" className="h-10 w-10 sm:h-8 sm:w-8" />
                     </>
                   )}
                 </button>

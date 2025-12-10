@@ -65,6 +65,7 @@ export interface SubscriptionData {
   paymentToken?: Token;
   paymentAmount?: string; // Amount in payment token
   acceptedTokens?: TokenPaymentOption[];
+  allowedTokens?: string[]; // List of allowed tokens for payment (selected by creator)
   // On-chain data
   txHash?: string;
   planId?: number;
