@@ -15,6 +15,7 @@ import { createInvoiceReceipt, type PaymentReceipt as StoredReceipt } from '../l
 import { downloadReceiptPng } from '../lib/receipt-generator';
 import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, getTokenCapabilities, type Invoice as ApiInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { payInvoiceGasless, isPermit2Approved, approvePermit2, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
+import { useToast } from '../contexts/ToastContext';
 
 interface InvoicePageProps {
   invoiceId: string;
@@ -23,6 +24,7 @@ interface InvoicePageProps {
 type PaymentStatus = 'pending' | 'processing' | 'paid' | 'failed';
 
 export function InvoicePage({ invoiceId }: InvoicePageProps) {
+  const toast = useToast();
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
@@ -1599,7 +1601,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                                     }
                                   }
 
-                                  alert('✅ Permit2 approved! Gasless payments are now enabled for this token.');
+                                  toast.success('Permit2 approved! Gasless payments are now enabled for this token.');
                                 } catch (error: any) {
                                   console.error('Failed to approve Permit2:', error);
 
@@ -2021,7 +2023,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
 
                             const signer = await getSigner();
                             await approvePermit2(tokenAddress, signer);
-                            alert('Permit2 approved! Gasless payments enabled.');
+                            toast.success('Permit2 approved! Gasless payments enabled.');
                             // Recheck gasless support
                             const provider = getProvider();
                             if (provider && walletAddress) {
@@ -2031,7 +2033,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                             }
                           } catch (error: any) {
                             console.error('Failed to approve Permit2:', error);
-                            alert(`Failed: ${error.message || 'Unknown error'}`);
+                            toast.error(error.message || 'Failed to approve Permit2. Please try again.');
                           }
                         }}
                         className="w-full px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg font-semibold transition-all"

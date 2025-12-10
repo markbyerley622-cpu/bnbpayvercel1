@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from './Header';
 import { AgentFlowPanel } from './AgentFlowPanel';
 import { FloatingParticles } from './FloatingParticles';
+import { ConfirmModal, useConfirmModal } from './ConfirmModal';
+import { useToast } from '../contexts/ToastContext';
 import type { InvoiceData, SubscriptionData } from '../lib/types';
 import type { NetworkType } from '../lib/web3';
 import { getCurrentNetwork, formatAddress } from '../lib/web3';
@@ -63,6 +65,12 @@ export function HistoryPage() {
   // Cancel invoice states
   const [cancellingInvoiceId, setCancellingInvoiceId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+
+  // Toast notifications
+  const toast = useToast();
+
+  // Confirm modal for delete/cancel actions
+  const confirmModal = useConfirmModal();
 
   // Fetch on-chain payments from BNBPay API
   // Use 'all' role to get payments where wallet is either payer or merchant
@@ -286,9 +294,9 @@ export function HistoryPage() {
     return `${prefix}_${walletAddress}`;
   };
 
-  const deleteInvoice = (invoiceId: string) => {
+  // Perform delete invoice action (called after confirmation)
+  const performDeleteInvoice = useCallback((invoiceId: string) => {
     if (!walletAddress) return;
-    if (!confirm('Are you sure you want to delete this invoice?')) return;
 
     const newInvoices = invoices.filter(inv => inv.invoiceId !== invoiceId);
     setInvoices(newInvoices);
@@ -297,26 +305,25 @@ export function HistoryPage() {
     if (storageKey) {
       localStorage.setItem(storageKey, safeStringify(newInvoices));
     }
-  };
+    toast.success('Invoice deleted successfully');
+  }, [walletAddress, invoices, findStorageKey, toast]);
 
-  // Cancel invoice via BNBPay API (must not be paid)
-  const handleCancelInvoice = async (invoiceId: string, currentStatus?: string) => {
+  // Show confirm modal for delete invoice
+  const deleteInvoice = (invoiceId: string) => {
     if (!walletAddress) return;
 
-    // Don't allow cancelling already paid or cancelled invoices
-    if (currentStatus === 'paid') {
-      setCancelError('Cannot cancel a paid invoice');
-      setTimeout(() => setCancelError(null), 3000);
-      return;
-    }
-    if (currentStatus === 'canceled' || currentStatus === 'cancelled') {
-      setCancelError('Invoice is already cancelled');
-      setTimeout(() => setCancelError(null), 3000);
-      return;
-    }
+    confirmModal.showConfirm({
+      title: 'Delete Invoice?',
+      description: 'Are you sure you want to delete this invoice? This will remove it from your local history.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmVariant: 'danger',
+      onConfirm: () => performDeleteInvoice(invoiceId),
+    });
+  };
 
-    if (!confirm('Are you sure you want to cancel this invoice? This action cannot be undone.')) return;
-
+  // Perform cancel invoice action (called after confirmation)
+  const performCancelInvoice = useCallback(async (invoiceId: string) => {
     setCancellingInvoiceId(invoiceId);
     setCancelError(null);
 
@@ -341,19 +348,44 @@ export function HistoryPage() {
         );
         localStorage.setItem(storageKey, safeStringify(updatedInvoices));
       }
+      toast.success('Invoice cancelled successfully');
     } catch (error) {
       console.error('Failed to cancel invoice:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to cancel invoice';
+      toast.error(errorMessage);
       setCancelError(errorMessage);
-      setTimeout(() => setCancelError(null), 5000);
     } finally {
       setCancellingInvoiceId(null);
     }
+  }, [invoices, findStorageKey, toast]);
+
+  // Cancel invoice via BNBPay API (must not be paid)
+  const handleCancelInvoice = (invoiceId: string, currentStatus?: string) => {
+    if (!walletAddress) return;
+
+    // Don't allow cancelling already paid or cancelled invoices
+    if (currentStatus === 'paid') {
+      toast.error('Cannot cancel a paid invoice');
+      return;
+    }
+    if (currentStatus === 'canceled' || currentStatus === 'cancelled') {
+      toast.warning('Invoice is already cancelled');
+      return;
+    }
+
+    confirmModal.showConfirm({
+      title: 'Cancel Invoice?',
+      description: 'Are you sure you want to cancel this invoice? This action cannot be undone.',
+      confirmText: 'Cancel Invoice',
+      cancelText: 'Keep Invoice',
+      confirmVariant: 'danger',
+      onConfirm: () => performCancelInvoice(invoiceId),
+    });
   };
 
-  const deleteSubscription = (subscriptionId: string) => {
+  // Perform delete subscription action (called after confirmation)
+  const performDeleteSubscription = useCallback((subscriptionId: string) => {
     if (!walletAddress) return;
-    if (!confirm('Are you sure you want to delete this subscription?')) return;
 
     const newSubscriptions = subscriptions.filter(sub => sub.subscriptionId !== subscriptionId);
     setSubscriptions(newSubscriptions);
@@ -362,10 +394,28 @@ export function HistoryPage() {
     if (storageKey) {
       localStorage.setItem(storageKey, safeStringify(newSubscriptions));
     }
+    toast.success('Subscription deleted successfully');
+  }, [walletAddress, subscriptions, findStorageKey, toast]);
+
+  // Show confirm modal for delete subscription
+  const deleteSubscription = (subscriptionId: string) => {
+    if (!walletAddress) return;
+
+    confirmModal.showConfirm({
+      title: 'Delete Subscription?',
+      description: 'Are you sure you want to delete this subscription? This will remove it from your local history.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmVariant: 'danger',
+      onConfirm: () => performDeleteSubscription(subscriptionId),
+    });
   };
 
   return (
     <>
+      {/* Confirm Modal */}
+      <ConfirmModal {...confirmModal.modalProps} />
+
       {/* Floating Particles Background */}
       <FloatingParticles />
 

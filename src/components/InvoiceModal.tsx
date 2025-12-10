@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import type { InvoiceData } from '../lib/types';
 import { isTestnetToken, getTokenDisplayName, getTokenImagePath, getTokensForNetwork, type Token } from '../lib/price-utils';
 import { subscribeToInvoiceSSE, type InvoiceStatus } from '../lib/bnbpay-api';
+import { useToast } from '../contexts/ToastContext';
 
 interface InvoiceModalProps {
   invoice: InvoiceData;
@@ -13,6 +14,7 @@ export function InvoiceModal({ invoice, onClose }: InvoiceModalProps) {
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(invoice.txHash ? 'paid' : 'pending');
   const [txHash, setTxHash] = useState<string | undefined>(invoice.txHash);
+  const toast = useToast();
 
   // Get all supported tokens for displaying accepted payment methods
   const network = invoice.paymentToken && isTestnetToken(invoice.paymentToken as Token) ? 'testnet' : 'mainnet';
@@ -87,15 +89,15 @@ export function InvoiceModal({ invoice, onClose }: InvoiceModalProps) {
   const handleCopyLink = () => {
     if (invoice.paymentLink) {
       navigator.clipboard.writeText(invoice.paymentLink);
-      alert('Payment link copied to clipboard!');
+      toast.success('Payment link copied to clipboard!');
     }
   };
 
-  const _handleCopyJSON = () => {
+  const handleCopyJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(invoice, null, 2));
-    alert('Invoice JSON copied to clipboard!');
+    toast.success('Invoice JSON copied to clipboard!');
   };
-  void _handleCopyJSON; // Suppress unused warning - available for future use
+  void handleCopyJSON; // Suppress unused warning - available for future use
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
@@ -139,7 +141,7 @@ export function InvoiceModal({ invoice, onClose }: InvoiceModalProps) {
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(invoice.payeeWalletAddress || '');
-                      alert('Payee wallet address copied!');
+                      toast.success('Payee wallet address copied!');
                     }}
                     className="ml-2 px-2 py-1 bg-amber-200 hover:bg-amber-300 text-amber-800 text-xs rounded transition-colors flex-shrink-0"
                   >

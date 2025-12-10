@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from './Header';
 import { FloatingParticles } from './FloatingParticles';
 import type { InvoiceData, SubscriptionData } from '../lib/types';
 import type { NetworkType } from '../lib/web3';
 import { getCurrentNetwork } from '../lib/web3';
 import { getTokenImagePath, getTokenDisplayName } from '../lib/price-utils';
+import { useToast } from '../contexts/ToastContext';
+import { sseManager, type InvoiceStatus, type SSEInvoiceUpdate } from '../lib/sse-service';
+import { getInvoiceStatus } from '../lib/bnbpay-api';
 
 interface CalendarEvent {
   id: string;
@@ -14,6 +17,7 @@ interface CalendarEvent {
   amount: string;
   token: string;
   isPaid: boolean;
+  status?: InvoiceStatus;
   data: InvoiceData | SubscriptionData;
 }
 
@@ -25,7 +29,10 @@ export function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [paidStatus, setPaidStatus] = useState<Record<string, boolean>>({});
+  const [invoiceStatuses, setInvoiceStatuses] = useState<Record<string, InvoiceStatus>>({});
   const [mounted, setMounted] = useState(false);
+  const toast = useToast();
+  const sseConnectionsRef = useRef<Map<string, { disconnect: () => void }>>(new Map());
 
   useEffect(() => {
     setMounted(true);
@@ -122,12 +129,97 @@ export function CalendarPage() {
     localStorage.setItem(`paidStatus_${walletAddress}`, JSON.stringify(newStatus));
   };
 
+  // Fetch invoice status from API
+  const fetchInvoiceStatus = useCallback(async (invoiceId: string) => {
+    try {
+      const status = await getInvoiceStatus(invoiceId);
+      if (status?.status) {
+        setInvoiceStatuses(prev => ({
+          ...prev,
+          [invoiceId]: status.status as InvoiceStatus
+        }));
+        // Auto-update paid status based on API status
+        if (status.status === 'paid') {
+          setPaidStatus(prev => ({
+            ...prev,
+            [`inv_created_${invoiceId}`]: true,
+            [`inv_due_${invoiceId}`]: true
+          }));
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to fetch status for invoice ${invoiceId}:`, error);
+    }
+  }, []);
+
+  // Subscribe to invoice SSE updates
+  const subscribeToInvoiceUpdates = useCallback((invoiceId: string) => {
+    // Don't create duplicate connections
+    if (sseConnectionsRef.current.has(invoiceId)) return;
+
+    const connection = sseManager.subscribeToInvoice(invoiceId, {
+      onUpdate: (update) => {
+        const invoiceUpdate = update as SSEInvoiceUpdate;
+        if (invoiceUpdate.data?.status) {
+          setInvoiceStatuses(prev => ({
+            ...prev,
+            [invoiceId]: invoiceUpdate.data!.status as InvoiceStatus
+          }));
+
+          // Show toast for status changes
+          if (invoiceUpdate.data.status === 'paid') {
+            toast.success(`Invoice ${invoiceId.slice(0, 8)}... has been paid!`);
+            setPaidStatus(prev => ({
+              ...prev,
+              [`inv_created_${invoiceId}`]: true,
+              [`inv_due_${invoiceId}`]: true
+            }));
+          } else if (invoiceUpdate.data.status === 'cancelled') {
+            toast.info(`Invoice ${invoiceId.slice(0, 8)}... has been cancelled`);
+          }
+        }
+      },
+      onError: (error) => {
+        console.error(`SSE error for invoice ${invoiceId}:`, error);
+      }
+    });
+
+    sseConnectionsRef.current.set(invoiceId, connection);
+  }, [toast]);
+
+  // Fetch statuses and subscribe to SSE for all invoices
+  useEffect(() => {
+    if (invoices.length === 0) return;
+
+    // Fetch initial status for each invoice
+    invoices.forEach(invoice => {
+      if (invoice.invoiceId) {
+        fetchInvoiceStatus(invoice.invoiceId);
+        // Only subscribe to SSE for pending invoices
+        if (invoice.status !== 'paid' && invoice.status !== 'cancelled') {
+          subscribeToInvoiceUpdates(invoice.invoiceId);
+        }
+      }
+    });
+
+    // Cleanup SSE connections on unmount
+    return () => {
+      sseConnectionsRef.current.forEach((connection) => {
+        connection.disconnect();
+      });
+      sseConnectionsRef.current.clear();
+    };
+  }, [invoices, fetchInvoiceStatus, subscribeToInvoiceUpdates]);
+
   // Generate calendar events from invoices and subscriptions
   const getCalendarEvents = (): CalendarEvent[] => {
     const events: CalendarEvent[] = [];
 
     // Add invoice events
     invoices.forEach(invoice => {
+      const invoiceStatus = invoice.invoiceId ? invoiceStatuses[invoice.invoiceId] : undefined;
+      const isPaidFromStatus = invoiceStatus === 'paid';
+
       // Invoice created event
       if (invoice.createdAt) {
         events.push({
@@ -137,7 +229,8 @@ export function CalendarPage() {
           title: invoice.description || 'Invoice',
           amount: invoice.amount,
           token: invoice.settlement || invoice.paymentToken || 'BNB',
-          isPaid: paidStatus[`inv_created_${invoice.invoiceId}`] || false,
+          isPaid: isPaidFromStatus || paidStatus[`inv_created_${invoice.invoiceId}`] || false,
+          status: invoiceStatus,
           data: invoice,
         });
       }
@@ -151,7 +244,8 @@ export function CalendarPage() {
           title: `Due: ${invoice.description || 'Invoice'}`,
           amount: invoice.amount,
           token: invoice.settlement || invoice.paymentToken || 'BNB',
-          isPaid: paidStatus[`inv_due_${invoice.invoiceId}`] || false,
+          isPaid: isPaidFromStatus || paidStatus[`inv_due_${invoice.invoiceId}`] || false,
+          status: invoiceStatus,
           data: invoice,
         });
       }
@@ -273,8 +367,27 @@ export function CalendarPage() {
            date.getFullYear() === selectedDate.getFullYear();
   };
 
-  const getEventTypeColor = (type: CalendarEvent['type']) => {
-    switch (type) {
+  // Get color based on event type AND status
+  const getEventColor = (event: CalendarEvent) => {
+    // If event has a status, use status-based coloring
+    if (event.status) {
+      switch (event.status) {
+        case 'paid':
+          return 'bg-green-500';
+        case 'cancelled':
+          return 'bg-gray-500';
+        case 'expired':
+          return 'bg-gray-400';
+        case 'failed':
+          return 'bg-red-600';
+        case 'pending':
+        default:
+          break; // Fall through to type-based coloring
+      }
+    }
+
+    // Fall back to type-based coloring
+    switch (event.type) {
       case 'invoice_created':
         return 'bg-bnb-yellow';
       case 'invoice_due':
@@ -288,12 +401,15 @@ export function CalendarPage() {
     }
   };
 
-  const getEventTypeLabel = (type: CalendarEvent['type']) => {
+  const getEventTypeLabel = (type: CalendarEvent['type'], status?: InvoiceStatus) => {
+    // Add status suffix if available
+    const statusSuffix = status ? ` (${status.charAt(0).toUpperCase() + status.slice(1)})` : '';
+
     switch (type) {
       case 'invoice_created':
-        return 'Invoice Created';
+        return `Invoice Created${statusSuffix}`;
       case 'invoice_due':
-        return 'Invoice Due';
+        return `Invoice Due${statusSuffix}`;
       case 'subscription_created':
         return 'Subscription Created';
       case 'subscription_due':
@@ -412,7 +528,7 @@ export function CalendarPage() {
                             {dayEvents.slice(0, 3).map((event, i) => (
                               <div
                                 key={i}
-                                className={`w-2 h-2 rounded-full ${getEventTypeColor(event.type)} ${event.isPaid ? 'opacity-50' : ''}`}
+                                className={`w-2 h-2 rounded-full ${getEventColor(event)} ${event.isPaid ? 'opacity-50' : ''}`}
                               ></div>
                             ))}
                             {dayEvents.length > 3 && (
@@ -496,7 +612,7 @@ export function CalendarPage() {
                               event.type === 'subscription_created' ? 'bg-purple-500/20 text-purple-400' :
                               'bg-orange-500/20 text-orange-400'
                             }`}>
-                              {getEventTypeLabel(event.type)}
+                              {getEventTypeLabel(event.type, event.status)}
                             </span>
                             {event.isPaid && (
                               <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded font-semibold">

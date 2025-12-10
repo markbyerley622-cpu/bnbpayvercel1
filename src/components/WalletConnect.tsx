@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { connectWallet, formatAddress, getWalletAddress, type NetworkType } from '../lib/web3';
+import { useToast } from '../contexts/ToastContext';
 
 interface WalletConnectProps {
   network: NetworkType;
@@ -12,6 +13,7 @@ export function WalletConnect({ network, onWalletChanged, compact = false }: Wal
   const [connecting, setConnecting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     checkWalletConnection();
@@ -71,7 +73,7 @@ export function WalletConnect({ network, onWalletChanged, compact = false }: Wal
       }
     } catch (error: any) {
       console.error('Failed to connect wallet:', error);
-      alert(error.message || 'Failed to connect wallet');
+      toast.error(error.message || 'Failed to connect wallet. Please try again.');
     } finally {
       setConnecting(false);
     }

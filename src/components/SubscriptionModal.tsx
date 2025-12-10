@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import type { SubscriptionData } from '../lib/types';
 import { getTokenImagePath } from '../lib/price-utils';
+import { useToast } from '../contexts/ToastContext';
 
 interface SubscriptionModalProps {
   subscription: SubscriptionData;
@@ -10,6 +11,7 @@ interface SubscriptionModalProps {
 
 export function SubscriptionModal({ subscription, onClose }: SubscriptionModalProps) {
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (qrCanvasRef.current && subscription.paymentLink) {
@@ -27,15 +29,15 @@ export function SubscriptionModal({ subscription, onClose }: SubscriptionModalPr
   const handleCopyLink = () => {
     if (subscription.paymentLink) {
       navigator.clipboard.writeText(subscription.paymentLink);
-      alert('Subscription link copied to clipboard!');
+      toast.success('Subscription link copied to clipboard!');
     }
   };
 
-  const _handleCopyJSON = () => {
+  const handleCopyJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(subscription, null, 2));
-    alert('Subscription JSON copied to clipboard!');
+    toast.success('Subscription JSON copied to clipboard!');
   };
-  void _handleCopyJSON; // Suppress unused warning - available for future use
+  void handleCopyJSON; // Suppress unused warning - available for future use
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
