@@ -996,101 +996,104 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
             onClose={() => setShowReceipt(false)}
           />
         )}
-        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative">
+        <div className="min-h-screen bg-bnb-dark content-wrapper relative overflow-x-hidden">
           {/* Background glow */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-3xl"></div>
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-bnb-yellow/5 rounded-full blur-3xl"></div>
           </div>
 
-          <div className={`max-w-md mx-auto px-6 text-center relative z-10 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-            {/* Success Icon */}
-            <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-
-            <h1 className="text-3xl font-bold text-white mb-2">Payment Successful!</h1>
-            <p className="text-gray-400 mb-8">Your payment has been sent to the merchant.</p>
-
-            {/* Payment Details */}
-            <div className="card-shadow rounded-2xl p-4 sm:p-6 mb-6 max-w-md mx-auto w-full">
-              <div className="flex items-center justify-center space-x-2 sm:space-x-3 mb-4">
-                <span className="text-2xl sm:text-4xl font-bold text-green-500 break-all">{displayPaidAmount}</span>
-                <img
-                  src={getTokenImagePath(displayPaidToken)}
-                  alt={displayPaidToken}
-                  className="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0"
-                />
+          {/* Content container with proper padding for mobile scroll */}
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 pb-safe">
+            <div className={`max-w-md mx-auto text-center relative z-10 w-full ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+              {/* Success Icon */}
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                <svg className="w-10 h-10 sm:w-12 sm:h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                </svg>
               </div>
-              {displayPaidToken !== paymentToken && (
-                <p className="text-gray-500 text-xs mb-2 text-center">
-                  Settled as {paymentAmount} {paymentToken}
-                </p>
-              )}
-              <p className="text-gray-400 text-sm mb-4 text-center">Paid to {formatAddress(merchantAddress)}</p>
 
-              {txHash && (
-                <a
-                  href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm w-full"
-                >
-                  <span>View Transaction</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                  </svg>
-                </a>
-              )}
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Payment Successful!</h1>
+              <p className="text-gray-400 text-sm sm:text-base mb-6 sm:mb-8">Your payment has been sent to the merchant.</p>
 
-              {/* Invoice Link - always visible */}
-              <div className="mt-4 pt-4 border-t border-bnb-gray/30">
-                <p className="text-gray-500 text-xs mb-2">Invoice Link</p>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-3 py-2 rounded-lg overflow-hidden break-all min-w-0">
-                    {window.location.href.length > 50 ? window.location.href.slice(0, 50) + '...' : window.location.href}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                    }}
-                    className="px-3 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all text-xs font-semibold flex-shrink-0 w-full sm:w-auto"
+              {/* Payment Details */}
+              <div className="card-shadow rounded-2xl p-4 sm:p-6 mb-4 sm:mb-6 w-full">
+                <div className="flex items-center justify-center space-x-2 sm:space-x-3 mb-4">
+                  <span className="text-2xl sm:text-4xl font-bold text-green-500 break-all">{displayPaidAmount}</span>
+                  <img
+                    src={getTokenImagePath(displayPaidToken)}
+                    alt={displayPaidToken}
+                    className="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0"
+                  />
+                </div>
+                {displayPaidToken !== paymentToken && (
+                  <p className="text-gray-500 text-xs mb-2 text-center">
+                    Settled as {paymentAmount} {paymentToken}
+                  </p>
+                )}
+                <p className="text-gray-400 text-sm mb-4 text-center">Paid to {formatAddress(merchantAddress)}</p>
+
+                {txHash && (
+                  <a
+                    href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm w-full"
                   >
-                    Copy
-                  </button>
+                    <span>View Transaction</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                  </a>
+                )}
+
+                {/* Invoice Link - always visible */}
+                <div className="mt-4 pt-4 border-t border-bnb-gray/30">
+                  <p className="text-gray-500 text-xs mb-2">Invoice Link</p>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-3 py-2 rounded-lg overflow-hidden break-all min-w-0">
+                      {window.location.href.length > 50 ? window.location.href.slice(0, 50) + '...' : window.location.href}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                      }}
+                      className="px-3 py-2 bg-bnb-yellow/20 hover:bg-bnb-yellow text-bnb-yellow hover:text-bnb-dark rounded-lg transition-all text-xs font-semibold flex-shrink-0 w-full sm:w-auto"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* View Receipt Button */}
-            <button
-              onClick={() => setShowReceipt(true)}
-              className="w-full flex items-center justify-center space-x-2 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold py-4 px-6 rounded-xl transition-all mb-4"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-              </svg>
-              <span>View Receipt</span>
-            </button>
+              {/* View Receipt Button */}
+              <button
+                onClick={() => setShowReceipt(true)}
+                className="w-full flex items-center justify-center space-x-2 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold py-3 sm:py-4 px-6 rounded-xl transition-all mb-4"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span>View Receipt</span>
+              </button>
 
-            <a
-              href="/"
-              className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-              </svg>
-              <span>Back to Home</span>
-            </a>
+              <a
+                href="/"
+                className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                <span>Back to Home</span>
+              </a>
 
-            {/* Powered by Footer */}
-            <div className="mt-12">
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                <span>Powered by</span>
-                <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+              {/* Powered by Footer */}
+              <div className="mt-8 sm:mt-12 pb-4">
+                <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                  <span>Powered by</span>
+                  <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                  </div>
                 </div>
               </div>
             </div>

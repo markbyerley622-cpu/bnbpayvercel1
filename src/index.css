@@ -678,3 +678,17 @@ nav.scrolled {
     padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
 }
+
+/* Safe area padding utility for mobile */
+.pb-safe {
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 2rem));
+}
+
+/* Payment success page mobile fixes */
+@media (max-width: 768px) {
+  /* Ensure success pages don't break on scroll */
+  .content-wrapper {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}

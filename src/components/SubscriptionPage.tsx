@@ -469,101 +469,104 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
             onClose={() => setShowReceipt(false)}
           />
         )}
-        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative py-8 px-4">
+        <div className="min-h-screen bg-bnb-dark content-wrapper relative overflow-x-hidden">
           {/* Background glow - More visible */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-10 left-0 w-72 sm:w-96 h-72 sm:h-96 bg-purple-700/20 rounded-full blur-3xl"></div>
             <div className="absolute bottom-10 right-0 w-72 sm:w-96 h-72 sm:h-96 bg-bnb-yellow/15 rounded-full blur-3xl"></div>
           </div>
 
-          <div className={`max-w-sm sm:max-w-md w-full text-center relative z-10 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-            {/* Success Icon - Smaller on mobile */}
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Subscription Activated!</h1>
-            <p className="text-gray-400 text-sm mb-1">{subscription.planName}</p>
-            <p className="text-bnb-yellow text-xs mb-4 sm:mb-6">{subscription.interval === 'monthly' ? 'Monthly' : 'Yearly'} billing</p>
-
-            {/* Payment Details - Compact card */}
-            <div className="card-shadow rounded-2xl p-4 sm:p-5 mb-4">
-              <div className="flex items-center justify-center space-x-2 mb-3">
-                <img
-                  src={getTokenImagePath(displayPaidToken)}
-                  alt={displayPaidToken}
-                  className="h-8 w-8 sm:h-10 sm:w-10 rounded-full"
-                />
-                <span className="text-3xl sm:text-4xl font-bold text-green-500">{displayPaidAmount}</span>
-                <span className="text-lg sm:text-xl text-gray-400">{displayPaidToken}</span>
-              </div>
-              {displayPaidToken !== settlementToken && (
-                <p className="text-gray-500 text-xs mb-2">
-                  Subscription price: {paymentAmount} {getTokenDisplayName(settlementToken)}
-                </p>
-              )}
-              <p className="text-gray-400 text-xs sm:text-sm mb-3">Paid to {formatAddress(merchantAddress)}</p>
-
-              <a
-                href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm"
-              >
-                <span>View Transaction</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          {/* Content container with proper padding for mobile scroll */}
+          <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 pb-safe">
+            <div className={`max-w-sm sm:max-w-md w-full text-center relative z-10 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+              {/* Success Icon - Smaller on mobile */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
                 </svg>
-              </a>
+              </div>
 
-              {/* Subscription Link - More compact */}
-              <div className="mt-3 pt-3 border-t border-bnb-gray/30">
-                <p className="text-gray-500 text-xs mb-1">Subscription Link</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-2 py-1.5 rounded-lg overflow-hidden text-ellipsis whitespace-nowrap min-w-0">
-                    {window.location.href.slice(0, 40)}...
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                    }}
-                    className="px-2 py-1.5 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow rounded-lg transition-all text-xs font-semibold flex-shrink-0 border border-bnb-yellow/30"
-                  >
-                    Copy
-                  </button>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">Subscription Activated!</h1>
+              <p className="text-gray-400 text-sm mb-1">{subscription.planName}</p>
+              <p className="text-bnb-yellow text-xs mb-4 sm:mb-6">{subscription.interval === 'monthly' ? 'Monthly' : 'Yearly'} billing</p>
+
+              {/* Payment Details - Compact card */}
+              <div className="card-shadow rounded-2xl p-4 sm:p-5 mb-4">
+                <div className="flex items-center justify-center space-x-2 mb-3">
+                  <img
+                    src={getTokenImagePath(displayPaidToken)}
+                    alt={displayPaidToken}
+                    className="h-8 w-8 sm:h-10 sm:w-10 rounded-full"
+                  />
+                  <span className="text-3xl sm:text-4xl font-bold text-green-500">{displayPaidAmount}</span>
+                  <span className="text-lg sm:text-xl text-gray-400">{displayPaidToken}</span>
+                </div>
+                {displayPaidToken !== settlementToken && (
+                  <p className="text-gray-500 text-xs mb-2">
+                    Subscription price: {paymentAmount} {getTokenDisplayName(settlementToken)}
+                  </p>
+                )}
+                <p className="text-gray-400 text-xs sm:text-sm mb-3">Paid to {formatAddress(merchantAddress)}</p>
+
+                <a
+                  href={`${network === 'mainnet' ? 'https://bscscan.com' : 'https://testnet.bscscan.com'}/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-2 text-bnb-yellow hover:text-yellow-500 text-sm"
+                >
+                  <span>View Transaction</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                  </svg>
+                </a>
+
+                {/* Subscription Link - More compact */}
+                <div className="mt-3 pt-3 border-t border-bnb-gray/30">
+                  <p className="text-gray-500 text-xs mb-1">Subscription Link</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-bnb-gray/30 text-gray-400 text-xs font-mono px-2 py-1.5 rounded-lg overflow-hidden text-ellipsis whitespace-nowrap min-w-0">
+                      {window.location.href.slice(0, 40)}...
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                      }}
+                      className="px-2 py-1.5 bg-bnb-dark hover:bg-gray-800 text-bnb-yellow rounded-lg transition-all text-xs font-semibold flex-shrink-0 border border-bnb-yellow/30"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* View Receipt Button - Purple to Yellow gradient */}
-            <button
-              onClick={() => setShowReceipt(true)}
-              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 text-white font-bold py-3 px-4 rounded-xl transition-all mb-3"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-              </svg>
-              <span className="text-sm sm:text-base">View Receipt</span>
-            </button>
+              {/* View Receipt Button - Purple to Yellow gradient */}
+              <button
+                onClick={() => setShowReceipt(true)}
+                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-bnb-yellow hover:opacity-90 text-white font-bold py-3 px-4 rounded-xl transition-all mb-3"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span className="text-sm sm:text-base">View Receipt</span>
+              </button>
 
-            <a
-              href="/"
-              className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors text-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-              </svg>
-              <span>Back to Home</span>
-            </a>
+              <a
+                href="/"
+                className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-colors text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                <span>Back to Home</span>
+              </a>
 
-            {/* Powered by Footer - Compact */}
-            <div className="mt-6 sm:mt-8">
-              <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
-                <span>Powered by</span>
-                <div className="bg-bnb-gray/50 rounded-full px-3 py-1 border border-bnb-yellow/10">
-                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-4 w-auto opacity-90" />
+              {/* Powered by Footer - Compact */}
+              <div className="mt-6 sm:mt-8 pb-4">
+                <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
+                  <span>Powered by</span>
+                  <div className="bg-bnb-gray/50 rounded-full px-3 py-1 border border-bnb-yellow/10">
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-4 w-auto opacity-90" />
+                  </div>
                 </div>
               </div>
             </div>
