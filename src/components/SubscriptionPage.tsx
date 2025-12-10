@@ -404,7 +404,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
     return (
       <>
         <FloatingParticles />
-        <div className="min-h-screen bg-bnb-dark flex items-center justify-center">
+        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative z-10">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-bnb-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-400">Loading subscription...</p>
@@ -418,7 +418,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
     return (
       <>
         <FloatingParticles />
-        <div className="min-h-screen bg-bnb-dark flex items-center justify-center">
+        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative z-10">
           <div className="text-center max-w-md mx-auto px-6">
             <svg className="w-20 h-20 mx-auto text-red-400/50 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -579,11 +579,12 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
       <FloatingParticles />
 
       <div className="min-h-screen bg-bnb-dark content-wrapper relative">
-        {/* Background glow effects */}
+        {/* Background glow effects - More prominent on desktop */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-bnb-yellow/5 rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-bnb-yellow/3 to-transparent rounded-full"></div>
+          <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-purple-500/15 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-bnb-yellow/12 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/3 right-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-bnb-yellow/8 rounded-full blur-3xl"></div>
         </div>
 
         {/* Header */}

@@ -105,6 +105,7 @@ export function FloatingParticles() {
           pointerEvents: 'none',
           zIndex: 1,
           overflow: 'hidden',
+          minHeight: '100vh',
         }}
       >
         {particles.map(particle => {

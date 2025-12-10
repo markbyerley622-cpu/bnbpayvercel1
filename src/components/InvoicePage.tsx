@@ -917,7 +917,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
     return (
       <>
         <FloatingParticles />
-        <div className="min-h-screen bg-bnb-dark flex items-center justify-center">
+        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative z-10">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-bnb-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-400">Loading invoice...</p>
@@ -931,7 +931,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
     return (
       <>
         <FloatingParticles />
-        <div className="min-h-screen bg-bnb-dark flex items-center justify-center">
+        <div className="min-h-screen bg-bnb-dark content-wrapper flex items-center justify-center relative z-10">
           <div className="text-center max-w-md mx-auto px-6">
             <svg className="w-20 h-20 mx-auto text-red-400/50 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -1148,11 +1148,12 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       />
 
       <div className="min-h-screen bg-bnb-dark content-wrapper relative">
-        {/* Background glow effects */}
+        {/* Background glow effects - More prominent on desktop */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-bnb-yellow/5 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-bnb-yellow/3 rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-bnb-yellow/5 to-transparent rounded-full"></div>
+          <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-bnb-yellow/15 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/3 right-0 w-[500px] h-[500px] bg-bnb-yellow/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 left-0 w-[400px] h-[400px] bg-purple-600/8 rounded-full blur-3xl"></div>
         </div>
 
         {/* Main Content */}
