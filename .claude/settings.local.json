@@ -28,7 +28,10 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd customer payment components and error handling\n\n- New CustomerHeader, CustomerPaymentLayout components\n- Receipt history and viewer functionality  \n- Error boundary and error UI components\n- Safe service wrapper for error handling\n- Receipt generator and storage utilities\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebSearch",
+      "Bash(npm run typecheck:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

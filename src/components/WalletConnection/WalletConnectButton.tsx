@@ -63,18 +63,6 @@ export function WalletConnectButton({
   const isSupportedChain = chainId === bsc.id || chainId === bscTestnet.id;
   const isWrongNetwork = isConnected && isSupportedChain && chainId !== targetChainId;
 
-  // Debug logging
-  if (isConnected) {
-    console.log('[WalletConnect Debug]', {
-      'App network setting': network,
-      'Expected chainId': targetChainId,
-      'Wallet chainId': chainId,
-      'Is wrong network': isWrongNetwork,
-      'bsc.id': bsc.id,
-      'bscTestnet.id': bscTestnet.id,
-    });
-  }
-
   // Notify parent when connected
   useEffect(() => {
     if (isConnected && address) {

@@ -21,12 +21,9 @@ const isDev = import.meta.env.DEV;
 const mainnetChains = [bsc];
 const testnetChains = [bscTestnet];
 
-// In development, include both mainnet and testnet
-// In production, can be controlled via environment variable
-const includeTestnet = isDev || import.meta.env.VITE_INCLUDE_TESTNET === 'true';
-const allChains = includeTestnet
-  ? [...mainnetChains, ...testnetChains]
-  : [...mainnetChains];
+// Always include both mainnet and testnet chains
+// Users need to be able to switch between networks
+const allChains = [...mainnetChains, ...testnetChains];
 
 // Create Wagmi adapter with BNB Chain as primary
 const wagmiAdapter = new WagmiAdapter({
@@ -34,17 +31,17 @@ const wagmiAdapter = new WagmiAdapter({
   projectId,
 });
 
-// Metadata URL based on environment
-const metadataUrl = isDev
-  ? 'http://localhost:3000'
-  : (import.meta.env.VITE_APP_URL || 'https://bnbpay.app');
+// Metadata URL - use current page origin to avoid WalletConnect warnings
+const metadataUrl = typeof window !== 'undefined'
+  ? window.location.origin
+  : (import.meta.env.VITE_APP_URL || 'https://bnb-pay-eight.vercel.app');
 
 // Create AppKit modal with Pepay/BNBPay branding
 createAppKit({
   adapters: [wagmiAdapter],
   projectId,
   networks: allChains as any,
-  defaultNetwork: bsc, // Default to BNB Chain Mainnet
+  defaultNetwork: bscTestnet, // Default to BNB Chain Testnet for development
   metadata: {
     name: 'BNBPay',
     description: 'USD1-first payments on BNB Chain with multi-token support',
