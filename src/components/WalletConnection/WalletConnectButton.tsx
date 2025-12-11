@@ -6,7 +6,7 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppKit, useAppKitState } from '@reown/appkit/react';
-import { useAccount, useDisconnect, useBalance, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useDisconnect, useBalance, useSwitchChain } from 'wagmi';
 import { bsc, bscTestnet } from 'wagmi/chains';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -35,9 +35,10 @@ export function WalletConnectButton({
 }: WalletConnectButtonProps) {
   const { open } = useAppKit();
   const { open: isModalOpen } = useAppKitState();
-  const { isConnected, address, isConnecting, isReconnecting } = useAccount();
+  // Use chainId from useAccount() to get the actual wallet's connected chain
+  // Note: useChainId() returns the config's state chain, not the wallet's actual chain
+  const { isConnected, address, isConnecting, isReconnecting, chainId } = useAccount();
   const { disconnect } = useDisconnect();
-  const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const toast = useToast();
 
@@ -52,7 +53,10 @@ export function WalletConnectButton({
 
   // Target chain based on network prop
   const targetChainId = network === 'mainnet' ? bsc.id : bscTestnet.id;
-  const isWrongNetwork = isConnected && chainId !== targetChainId;
+
+  // Check if on wrong network - only if connected AND chainId is valid AND doesn't match target
+  // Note: chainId can be undefined or 0 during initial connection, so we only check when it's a valid chain
+  const isWrongNetwork = isConnected && chainId !== undefined && chainId !== 0 && chainId !== targetChainId;
 
   // Notify parent when connected
   useEffect(() => {
@@ -342,9 +346,9 @@ export function WalletConnectButton({
  * Use this for components that just need to check connection status
  */
 export function useWallet() {
-  const { isConnected, address, isConnecting } = useAccount();
+  // Use chainId from useAccount() to get the actual wallet's connected chain
+  const { isConnected, address, isConnecting, chainId } = useAccount();
   const { disconnect } = useDisconnect();
-  const chainId = useChainId();
 
   return {
     isConnected,
