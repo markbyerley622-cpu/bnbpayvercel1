@@ -52,15 +52,28 @@ export function WalletConnectButton({
   });
 
   // Target chain based on network prop
+  // network='testnet' expects wallet on chain 97 (bscTestnet)
+  // network='mainnet' expects wallet on chain 56 (bsc)
   const targetChainId = network === 'mainnet' ? bsc.id : bscTestnet.id;
 
-  // Check if on wrong network - only if connected AND chainId is a valid BNB chain AND doesn't match target
-  // Note: chainId can be undefined during initial connection, so we only check when it's a known chain
+  // Check if on wrong network:
+  // - Must be connected
+  // - Wallet chainId must be defined and a supported BNB chain (56 or 97)
+  // - Wallet chainId must not match the app's expected target chain
   const isSupportedChain = chainId === bsc.id || chainId === bscTestnet.id;
   const isWrongNetwork = isConnected && isSupportedChain && chainId !== targetChainId;
 
-  // Debug logging (remove in production)
-  console.log('[WalletConnect] network prop:', network, 'targetChainId:', targetChainId, 'wallet chainId:', chainId, 'isConnected:', isConnected, 'isWrongNetwork:', isWrongNetwork);
+  // Debug logging
+  if (isConnected) {
+    console.log('[WalletConnect Debug]', {
+      'App network setting': network,
+      'Expected chainId': targetChainId,
+      'Wallet chainId': chainId,
+      'Is wrong network': isWrongNetwork,
+      'bsc.id': bsc.id,
+      'bscTestnet.id': bscTestnet.id,
+    });
+  }
 
   // Notify parent when connected
   useEffect(() => {
