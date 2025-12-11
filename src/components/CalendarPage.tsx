@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Header } from './Header';
 import { FloatingParticles } from './FloatingParticles';
 import type { InvoiceData, SubscriptionData } from '../lib/types';
@@ -187,19 +187,32 @@ export function CalendarPage() {
     sseConnectionsRef.current.set(invoiceId, connection);
   }, [toast]);
 
+  // Batch fetch invoice statuses with concurrency limit
+  const batchFetchInvoiceStatuses = useCallback(async (invoiceIds: string[]) => {
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < invoiceIds.length; i += BATCH_SIZE) {
+      const batch = invoiceIds.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(id => fetchInvoiceStatus(id)));
+    }
+  }, [fetchInvoiceStatus]);
+
   // Fetch statuses and subscribe to SSE for all invoices
   useEffect(() => {
     if (invoices.length === 0) return;
 
-    // Fetch initial status for each invoice
-    invoices.forEach(invoice => {
-      if (invoice.invoiceId) {
-        fetchInvoiceStatus(invoice.invoiceId);
-        // Only subscribe to SSE for pending invoices
-        if (invoice.status !== 'paid' && invoice.status !== 'cancelled') {
-          subscribeToInvoiceUpdates(invoice.invoiceId);
-        }
-      }
+    // Get pending invoices that need status checks
+    const pendingInvoiceIds = invoices
+      .filter(inv => inv.invoiceId && inv.status !== 'paid' && inv.status !== 'cancelled')
+      .map(inv => inv.invoiceId!);
+
+    // Batch fetch statuses for pending invoices
+    if (pendingInvoiceIds.length > 0) {
+      batchFetchInvoiceStatuses(pendingInvoiceIds);
+    }
+
+    // Subscribe to SSE for pending invoices
+    pendingInvoiceIds.forEach(invoiceId => {
+      subscribeToInvoiceUpdates(invoiceId);
     });
 
     // Cleanup SSE connections on unmount
@@ -209,7 +222,7 @@ export function CalendarPage() {
       });
       sseConnectionsRef.current.clear();
     };
-  }, [invoices, fetchInvoiceStatus, subscribeToInvoiceUpdates]);
+  }, [invoices, batchFetchInvoiceStatuses, subscribeToInvoiceUpdates]);
 
   // Generate calendar events from invoices and subscriptions
   const getCalendarEvents = (): CalendarEvent[] => {
@@ -297,7 +310,8 @@ export function CalendarPage() {
     return events;
   };
 
-  const events = getCalendarEvents();
+  // Memoize calendar events to avoid recalculating on every render
+  const events = useMemo(() => getCalendarEvents(), [invoices, subscriptions, invoiceStatuses, paidStatus, currentDate]);
 
   // Get events for a specific date
   const getEventsForDate = (date: Date): CalendarEvent[] => {
@@ -322,13 +336,13 @@ export function CalendarPage() {
     setSelectedDate(new Date());
   };
 
-  // Generate calendar days
-  const getDaysInMonth = () => {
+  // Generate calendar days - memoized to avoid recalculating on every render
+  const daysInMonth = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
+    const daysCount = lastDay.getDate();
     const startingDay = firstDay.getDay();
 
     const days: (Date | null)[] = [];
@@ -339,12 +353,12 @@ export function CalendarPage() {
     }
 
     // Add actual days
-    for (let i = 1; i <= daysInMonth; i++) {
+    for (let i = 1; i <= daysCount; i++) {
       days.push(new Date(year, month, i));
     }
 
     return days;
-  };
+  }, [currentDate]);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -496,7 +510,7 @@ export function CalendarPage() {
 
                 {/* Calendar Grid */}
                 <div className="grid grid-cols-7 gap-1">
-                  {getDaysInMonth().map((date, index) => {
+                  {daysInMonth.map((date, index) => {
                     if (!date) {
                       return <div key={`empty-${index}`} className="h-24 bg-bnb-gray/20 rounded-lg"></div>;
                     }

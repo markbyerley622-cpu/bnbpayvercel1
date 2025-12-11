@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { WalletConnectButton } from './WalletConnection';
 import { NetworkToggle } from './NetworkToggle';
 import type { NetworkType } from '../lib/web3';
@@ -21,14 +21,37 @@ export function Header({
   activePage = 'home'
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [giftCardDropdownOpen, setGiftCardDropdownOpen] = useState(false);
+  const [mobileGiftCardExpanded, setMobileGiftCardExpanded] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isGiftCardPage = activePage?.startsWith('giftcard');
 
-  // Navigate function that uses history API for SPA routing
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setGiftCardDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Navigate function - uses full page navigation for .html files, SPA routing for others
   const navigate = (path: string) => {
+    setMobileMenuOpen(false);
+    setGiftCardDropdownOpen(false);
+
+    // For .html files (separate entry points), use full page navigation
+    if (path.endsWith('.html')) {
+      window.location.href = path;
+      return;
+    }
+
+    // For SPA routes, use history API
     window.history.pushState({}, '', path);
     window.dispatchEvent(new PopStateEvent('popstate'));
-    setMobileMenuOpen(false);
   };
 
   return (
@@ -80,20 +103,63 @@ export function Header({
                   <span>Calendar</span>
                 </button>
 
-                {/* Gift Cards - Single link (no dropdown) */}
-                <button
-                  onClick={() => navigate('/giftcard/history')}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
-                    isGiftCardPage
-                      ? 'text-bnb-yellow bg-bnb-yellow/10'
-                      : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                  </svg>
-                  <span>Gift Cards</span>
-                </button>
+                {/* Gift Cards - Dropdown menu */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setGiftCardDropdownOpen(!giftCardDropdownOpen)}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
+                      isGiftCardPage
+                        ? 'text-bnb-yellow bg-bnb-yellow/10'
+                        : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                    }`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                    </svg>
+                    <span>Gift Cards</span>
+                    <svg className={`w-4 h-4 transition-transform ${giftCardDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {giftCardDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-bnb-dark border border-bnb-gray rounded-xl shadow-lg overflow-hidden z-50 animate-fade-in">
+                      <button
+                        onClick={() => {
+                          navigate('/giftcard/create');
+                          setGiftCardDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors ${
+                          activePage === 'giftcard-create'
+                            ? 'text-bnb-yellow bg-bnb-yellow/10'
+                            : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                        }`}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Create Gift Card</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/giftcard/redeem');
+                          setGiftCardDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 text-left transition-colors ${
+                          activePage === 'giftcard-redeem'
+                            ? 'text-bnb-yellow bg-bnb-yellow/10'
+                            : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                        }`}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Redeem Gift Card</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </nav>
             )}
           </div>
@@ -194,20 +260,59 @@ export function Header({
                   <span>Payment Calendar</span>
                 </button>
 
-                {/* Gift Cards - Single link in mobile menu */}
-                <button
-                  onClick={() => navigate('/giftcard/history')}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
-                    isGiftCardPage
-                      ? 'text-bnb-yellow bg-bnb-yellow/10'
-                      : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                  </svg>
-                  <span>Gift Cards</span>
-                </button>
+                {/* Gift Cards - Expandable section in mobile menu */}
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setMobileGiftCardExpanded(!mobileGiftCardExpanded)}
+                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors font-medium ${
+                      isGiftCardPage
+                        ? 'text-bnb-yellow bg-bnb-yellow/10'
+                        : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                      </svg>
+                      <span>Gift Cards</span>
+                    </div>
+                    <svg className={`w-4 h-4 transition-transform ${mobileGiftCardExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Expandable Sub-menu */}
+                  {mobileGiftCardExpanded && (
+                    <div className="pl-8 space-y-1 animate-slide-up">
+                      <button
+                        onClick={() => navigate('/giftcard/create')}
+                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                          activePage === 'giftcard-create'
+                            ? 'text-bnb-yellow bg-bnb-yellow/10'
+                            : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Create Gift Card</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('/giftcard/redeem')}
+                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                          activePage === 'giftcard-redeem'
+                            ? 'text-bnb-yellow bg-bnb-yellow/10'
+                            : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Redeem Gift Card</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </nav>
             )}
 

@@ -148,119 +148,128 @@ export function HistoryPage() {
   const loadHistory = async () => {
     if (!walletAddress) return;
 
-    console.log('=== Loading History ===');
-    console.log('Wallet address:', walletAddress);
-
     // Normalize wallet address to lowercase for consistent lookup
     const normalizedAddress = walletAddress.toLowerCase();
 
-    // Load invoices from localStorage - try both original and normalized keys
-    console.log('Checking localStorage key:', `invoices_${walletAddress}`);
-    let storedInvoices = localStorage.getItem(`invoices_${walletAddress}`);
-    if (!storedInvoices) {
-      console.log('Not found, checking:', `invoices_${normalizedAddress}`);
-      storedInvoices = localStorage.getItem(`invoices_${normalizedAddress}`);
-    }
-    // Also try checksummed version (ethers returns checksummed)
-    if (!storedInvoices) {
-      console.log('Still not found, searching all localStorage keys...');
-      // Search all localStorage keys for this wallet
+    // Helper to find storage key
+    const findKey = (prefix: string): string | null => {
+      const directKey = `${prefix}_${walletAddress}`;
+      if (localStorage.getItem(directKey)) return directKey;
+      const normalKey = `${prefix}_${normalizedAddress}`;
+      if (localStorage.getItem(normalKey)) return normalKey;
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key?.startsWith('invoices_')) {
-          console.log('Found invoices key:', key);
-          if (key.toLowerCase() === `invoices_${normalizedAddress}`) {
-            console.log('Match! Using key:', key);
-            storedInvoices = localStorage.getItem(key);
-            break;
-          }
+        if (key?.startsWith(`${prefix}_`) && key.toLowerCase() === `${prefix}_${normalizedAddress}`) {
+          return key;
         }
       }
-    }
+      return null;
+    };
+
+    // Load invoices from localStorage
+    const invoicesKey = findKey('invoices');
+    const storedInvoices = invoicesKey ? localStorage.getItem(invoicesKey) : null;
+
     if (storedInvoices) {
       try {
-        let parsedInvoices: InvoiceData[] = JSON.parse(storedInvoices);
+        const parsedInvoices: InvoiceData[] = JSON.parse(storedInvoices);
 
-        // Check for payment status - first check localStorage payment records, then API
-        const updatedInvoices = await Promise.all(
-          parsedInvoices.map(async (invoice) => {
-            // Skip if already marked as paid
-            if (invoice.status === 'paid') {
-              return invoice;
-            }
+        // First pass: quick check localStorage for paid status (synchronous, fast)
+        const quickUpdatedInvoices = parsedInvoices.map((invoice) => {
+          if (invoice.status === 'paid') return invoice;
+          if (!invoice.invoiceId) return invoice;
 
-            // First, check localStorage for payment record (most reliable for recent payments)
-            if (invoice.invoiceId) {
-              const paymentRecord = localStorage.getItem(`payment_${invoice.invoiceId}`);
-              if (paymentRecord) {
-                try {
-                  const payment = JSON.parse(paymentRecord);
-                  if (payment.txHash) {
-                    console.log(`Invoice ${invoice.invoiceId} marked as paid from localStorage payment record`);
-                    return {
-                      ...invoice,
-                      status: 'paid' as const,
-                      txHash: payment.txHash,
-                      paymentId: payment.paymentId || invoice.paymentId,
-                      paidAt: payment.paidAt || Date.now(),
-                      paidBy: payment.paidBy,
-                      paidToken: payment.token,
-                      paidAmount: payment.amount,
-                    };
-                  }
-                } catch (e) {
-                  console.error('Failed to parse payment record:', e);
-                }
+          // Check localStorage payment record
+          const paymentRecord = localStorage.getItem(`payment_${invoice.invoiceId}`);
+          if (paymentRecord) {
+            try {
+              const payment = JSON.parse(paymentRecord);
+              if (payment.txHash) {
+                return {
+                  ...invoice,
+                  status: 'paid' as const,
+                  txHash: payment.txHash,
+                  paymentId: payment.paymentId || invoice.paymentId,
+                  paidAt: payment.paidAt || Date.now(),
+                  paidBy: payment.paidBy,
+                  paidToken: payment.token,
+                  paidAmount: payment.amount,
+                };
               }
+            } catch { /* ignore */ }
+          }
 
-              // Also check the individual invoice record which gets updated on payment
-              const individualInvoice = localStorage.getItem(`invoice_${invoice.invoiceId}`);
-              if (individualInvoice) {
-                try {
-                  const invData = JSON.parse(individualInvoice);
-                  if (invData.status === 'paid' && invData.txHash) {
-                    console.log(`Invoice ${invoice.invoiceId} marked as paid from individual invoice record`);
-                    return {
-                      ...invoice,
-                      ...invData,
-                      status: 'paid' as const,
-                    };
-                  }
-                } catch (e) {
-                  console.error('Failed to parse individual invoice:', e);
-                }
+          // Check individual invoice record
+          const individualInvoice = localStorage.getItem(`invoice_${invoice.invoiceId}`);
+          if (individualInvoice) {
+            try {
+              const invData = JSON.parse(individualInvoice);
+              if (invData.status === 'paid' && invData.txHash) {
+                return { ...invoice, ...invData, status: 'paid' as const };
               }
+            } catch { /* ignore */ }
+          }
 
-              // Finally, check API (may have delay due to event indexer)
-              try {
-                const apiStatus = await getInvoiceStatus(invoice.invoiceId);
-                if (apiStatus.status === 'paid') {
-                  console.log(`Invoice ${invoice.invoiceId} marked as paid by API`);
-                  return {
-                    ...invoice,
-                    status: 'paid' as const,
-                    txHash: apiStatus.txHash || invoice.txHash,
-                    paymentId: apiStatus.paymentId || invoice.paymentId,
-                    paidAt: invoice.paidAt || Date.now(),
-                  };
-                }
-              } catch (err) {
-                // API error - keep local status
-                console.log(`Failed to check API status for invoice ${invoice.invoiceId}:`, err);
-              }
-            }
-            return invoice;
-          })
+          return invoice;
+        });
+
+        // Set invoices immediately with localStorage data (fast initial render)
+        setInvoices(quickUpdatedInvoices);
+
+        // Second pass: batch API calls for pending invoices only (async, background)
+        const pendingInvoices = quickUpdatedInvoices.filter(
+          inv => inv.status !== 'paid' && inv.status !== 'cancelled' && inv.status !== 'canceled' && inv.invoiceId
         );
 
-        // Check if any invoices were updated and save back to localStorage
-        const hasUpdates = updatedInvoices.some((inv, idx) => inv.status !== parsedInvoices[idx].status);
-        if (hasUpdates) {
-          const storageKey = `invoices_${walletAddress}`;
-          localStorage.setItem(storageKey, safeStringify(updatedInvoices));
-        }
+        if (pendingInvoices.length > 0) {
+          // Batch API calls with concurrency limit
+          const BATCH_SIZE = 5;
+          const apiResults: Record<string, { status: string; txHash?: string; paymentId?: string }> = {};
 
-        setInvoices(updatedInvoices);
+          for (let i = 0; i < pendingInvoices.length; i += BATCH_SIZE) {
+            const batch = pendingInvoices.slice(i, i + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(
+              batch.map(async (inv) => {
+                try {
+                  const status = await getInvoiceStatus(inv.invoiceId!);
+                  return { invoiceId: inv.invoiceId!, status };
+                } catch {
+                  return { invoiceId: inv.invoiceId!, status: null };
+                }
+              })
+            );
+
+            batchResults.forEach((result) => {
+              if (result.status === 'fulfilled' && result.value.status) {
+                apiResults[result.value.invoiceId] = result.value.status;
+              }
+            });
+          }
+
+          // Update invoices with API results
+          const apiUpdatedInvoices = quickUpdatedInvoices.map((invoice) => {
+            if (!invoice.invoiceId || invoice.status === 'paid') return invoice;
+            const apiStatus = apiResults[invoice.invoiceId];
+            if (apiStatus?.status === 'paid') {
+              return {
+                ...invoice,
+                status: 'paid' as const,
+                txHash: apiStatus.txHash || invoice.txHash,
+                paymentId: apiStatus.paymentId || invoice.paymentId,
+                paidAt: invoice.paidAt || Date.now(),
+              };
+            }
+            return invoice;
+          });
+
+          // Only update if there were changes
+          const hasUpdates = apiUpdatedInvoices.some((inv, idx) => inv.status !== quickUpdatedInvoices[idx].status);
+          if (hasUpdates) {
+            setInvoices(apiUpdatedInvoices);
+            const storageKey = `invoices_${walletAddress}`;
+            localStorage.setItem(storageKey, safeStringify(apiUpdatedInvoices));
+          }
+        }
       } catch (error) {
         console.error('Failed to parse invoices:', error);
         setInvoices([]);
@@ -269,21 +278,10 @@ export function HistoryPage() {
       setInvoices([]);
     }
 
-    // Load subscriptions from localStorage - try both original and normalized keys
-    let storedSubscriptions = localStorage.getItem(`subscriptions_${walletAddress}`);
-    if (!storedSubscriptions) {
-      storedSubscriptions = localStorage.getItem(`subscriptions_${normalizedAddress}`);
-    }
-    // Also try checksummed version
-    if (!storedSubscriptions) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('subscriptions_') && key.toLowerCase() === `subscriptions_${normalizedAddress}`) {
-          storedSubscriptions = localStorage.getItem(key);
-          break;
-        }
-      }
-    }
+    // Load subscriptions from localStorage
+    const subscriptionsKey = findKey('subscriptions');
+    const storedSubscriptions = subscriptionsKey ? localStorage.getItem(subscriptionsKey) : null;
+
     if (storedSubscriptions) {
       try {
         setSubscriptions(JSON.parse(storedSubscriptions));
