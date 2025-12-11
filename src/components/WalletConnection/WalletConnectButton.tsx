@@ -54,9 +54,13 @@ export function WalletConnectButton({
   // Target chain based on network prop
   const targetChainId = network === 'mainnet' ? bsc.id : bscTestnet.id;
 
-  // Check if on wrong network - only if connected AND chainId is valid AND doesn't match target
-  // Note: chainId can be undefined or 0 during initial connection, so we only check when it's a valid chain
-  const isWrongNetwork = isConnected && chainId !== undefined && chainId !== 0 && chainId !== targetChainId;
+  // Check if on wrong network - only if connected AND chainId is a valid BNB chain AND doesn't match target
+  // Note: chainId can be undefined during initial connection, so we only check when it's a known chain
+  const isSupportedChain = chainId === bsc.id || chainId === bscTestnet.id;
+  const isWrongNetwork = isConnected && isSupportedChain && chainId !== targetChainId;
+
+  // Debug logging (remove in production)
+  console.log('[WalletConnect] network prop:', network, 'targetChainId:', targetChainId, 'wallet chainId:', chainId, 'isConnected:', isConnected, 'isWrongNetwork:', isWrongNetwork);
 
   // Notify parent when connected
   useEffect(() => {
