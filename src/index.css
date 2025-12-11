@@ -599,6 +599,45 @@ nav.scrolled {
   animation: shimmer 2s infinite;
 }
 
+/* Gift Card Shimmer Effect */
+@keyframes gift-card-shimmer {
+  0% {
+    transform: translateX(-100%) rotate(-45deg);
+  }
+  100% {
+    transform: translateX(200%) rotate(-45deg);
+  }
+}
+
+.gift-card-shimmer {
+  background: linear-gradient(
+    135deg,
+    transparent 30%,
+    rgba(240, 185, 11, 0.15) 45%,
+    rgba(240, 185, 11, 0.25) 50%,
+    rgba(240, 185, 11, 0.15) 55%,
+    transparent 70%
+  );
+  background-size: 200% 200%;
+  animation: gift-card-shimmer 3s ease-in-out infinite;
+}
+
+/* Slow pulse animation for selected tokens */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
 /* ============================================
    MOBILE PAYMENT PAGE OPTIMIZATIONS
    Ensures glow background is visible and

@@ -9,7 +9,7 @@ interface HeaderProps {
   onWalletChanged?: (address: string | null) => void;
   title?: string;
   showNav?: boolean;
-  activePage?: 'home' | 'history' | 'calendar' | 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history';
+  activePage?: 'home' | 'invoice' | 'subscription' | 'history' | 'calendar' | 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history';
 }
 
 export function Header({
@@ -38,7 +38,7 @@ export function Header({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Navigate function - uses full page navigation for .html files, SPA routing for others
+  // Navigate function - uses full page navigation for .html files and home page with query params
   const navigate = (path: string) => {
     setMobileMenuOpen(false);
     setGiftCardDropdownOpen(false);
@@ -49,7 +49,14 @@ export function Header({
       return;
     }
 
-    // For SPA routes, use history API
+    // For home page with query params (/?tab=...), use full page navigation
+    // This ensures the page reloads and picks up the tab parameter
+    if (path.startsWith('/?') || path === '/') {
+      window.location.href = path;
+      return;
+    }
+
+    // For SPA routes (like /giftcard/create), use history API
     window.history.pushState({}, '', path);
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
@@ -63,9 +70,13 @@ export function Header({
           <div className="flex items-center space-x-4 md:space-x-6">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+              className="flex items-center space-x-3 hover:opacity-80 transition-opacity flex-shrink-0"
             >
-              <img src="/10.png" alt="BNB Pay" className="h-8 md:h-10 w-auto" />
+              <img
+                src="/10.png"
+                alt="BNBPay"
+                className="h-8 md:h-10 w-auto max-w-[120px] md:max-w-[160px] object-contain"
+              />
             </button>
 
             {title && (
@@ -75,32 +86,34 @@ export function Header({
             {/* Desktop Navigation */}
             {showNav && (
               <nav className="hidden lg:flex items-center space-x-1">
-                {/* Main Nav Items */}
+                {/* Invoice */}
                 <button
-                  onClick={() => navigate('/history.html')}
+                  onClick={() => navigate('/?tab=invoice')}
                   className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
-                    activePage === 'history'
+                    activePage === 'invoice' || (activePage === 'home')
                       ? 'text-bnb-yellow bg-bnb-yellow/10'
                       : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                   </svg>
-                  <span>History</span>
+                  <span>Invoice</span>
                 </button>
+
+                {/* Subscription */}
                 <button
-                  onClick={() => navigate('/calendar.html')}
+                  onClick={() => navigate('/?tab=subscription')}
                   className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
-                    activePage === 'calendar'
+                    activePage === 'subscription'
                       ? 'text-bnb-yellow bg-bnb-yellow/10'
                       : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                   </svg>
-                  <span>Calendar</span>
+                  <span>Subscription</span>
                 </button>
 
                 {/* Gift Cards - Dropdown menu */}
@@ -160,12 +173,42 @@ export function Header({
                     </div>
                   )}
                 </div>
+
+                {/* History */}
+                <button
+                  onClick={() => navigate('/history.html')}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
+                    activePage === 'history'
+                      ? 'text-bnb-yellow bg-bnb-yellow/10'
+                      : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>History</span>
+                </button>
+
+                {/* Calendar */}
+                <button
+                  onClick={() => navigate('/calendar.html')}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${
+                    activePage === 'calendar'
+                      ? 'text-bnb-yellow bg-bnb-yellow/10'
+                      : 'text-gray-400 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                  <span>Calendar</span>
+                </button>
               </nav>
             )}
           </div>
 
-          {/* Right: Wallet, Network, Status */}
-          <div className="flex items-center space-x-2 md:space-x-4">
+          {/* Right: Wallet, Network, Status - added ml-4 for spacing */}
+          <div className="flex items-center space-x-2 md:space-x-4 ml-4 flex-shrink-0">
             {/* Desktop: Full controls */}
             <div className="hidden md:flex items-center space-x-4">
               <WalletConnectButton
@@ -220,44 +263,34 @@ export function Header({
             {/* Mobile Navigation */}
             {showNav && (
               <nav className="space-y-1 mb-4">
+                {/* Invoice */}
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/?tab=invoice')}
                   className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
-                    activePage === 'home'
+                    activePage === 'invoice' || activePage === 'home'
                       ? 'text-bnb-yellow bg-bnb-yellow/10'
                       : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                   </svg>
-                  <span>Home</span>
+                  <span>Invoice</span>
                 </button>
+
+                {/* Subscription */}
                 <button
-                  onClick={() => navigate('/history.html')}
+                  onClick={() => navigate('/?tab=subscription')}
                   className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
-                    activePage === 'history'
+                    activePage === 'subscription'
                       ? 'text-bnb-yellow bg-bnb-yellow/10'
                       : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                   </svg>
-                  <span>Payment History</span>
-                </button>
-                <button
-                  onClick={() => navigate('/calendar.html')}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
-                    activePage === 'calendar'
-                      ? 'text-bnb-yellow bg-bnb-yellow/10'
-                      : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                  </svg>
-                  <span>Payment Calendar</span>
+                  <span>Subscription</span>
                 </button>
 
                 {/* Gift Cards - Expandable section in mobile menu */}
@@ -313,6 +346,36 @@ export function Header({
                     </div>
                   )}
                 </div>
+
+                {/* History */}
+                <button
+                  onClick={() => navigate('/history.html')}
+                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
+                    activePage === 'history'
+                      ? 'text-bnb-yellow bg-bnb-yellow/10'
+                      : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>History</span>
+                </button>
+
+                {/* Calendar */}
+                <button
+                  onClick={() => navigate('/calendar.html')}
+                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors font-medium ${
+                    activePage === 'calendar'
+                      ? 'text-bnb-yellow bg-bnb-yellow/10'
+                      : 'text-gray-300 hover:text-bnb-yellow hover:bg-bnb-gray/50'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  </svg>
+                  <span>Calendar</span>
+                </button>
               </nav>
             )}
 

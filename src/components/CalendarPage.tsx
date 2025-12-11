@@ -57,24 +57,65 @@ export function CalendarPage() {
     // Normalize wallet address to lowercase for consistent lookup
     const normalizedAddress = walletAddress.toLowerCase();
 
-    // Load invoices from localStorage - try both original and normalized keys
-    let storedInvoices = localStorage.getItem(`invoices_${walletAddress}`);
-    if (!storedInvoices) {
-      storedInvoices = localStorage.getItem(`invoices_${normalizedAddress}`);
-    }
-    // Also try checksummed version (ethers returns checksummed)
-    if (!storedInvoices) {
+    // Helper to find storage key
+    const findKey = (prefix: string): string | null => {
+      const directKey = `${prefix}_${walletAddress}`;
+      if (localStorage.getItem(directKey)) return directKey;
+      const normalKey = `${prefix}_${normalizedAddress}`;
+      if (localStorage.getItem(normalKey)) return normalKey;
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key?.startsWith('invoices_') && key.toLowerCase() === `invoices_${normalizedAddress}`) {
-          storedInvoices = localStorage.getItem(key);
-          break;
+        if (key?.startsWith(`${prefix}_`) && key.toLowerCase() === `${prefix}_${normalizedAddress}`) {
+          return key;
         }
       }
-    }
+      return null;
+    };
+
+    // Load invoices from localStorage
+    const invoicesKey = findKey('invoices');
+    const storedInvoices = invoicesKey ? localStorage.getItem(invoicesKey) : null;
+
     if (storedInvoices) {
       try {
-        setInvoices(JSON.parse(storedInvoices));
+        const parsedInvoices: InvoiceData[] = JSON.parse(storedInvoices);
+
+        // Check localStorage for paid status (payment records and individual invoice records)
+        const updatedInvoices = parsedInvoices.map((invoice) => {
+          if (invoice.status === 'paid') return invoice;
+          if (!invoice.invoiceId) return invoice;
+
+          // Check localStorage payment record
+          const paymentRecord = localStorage.getItem(`payment_${invoice.invoiceId}`);
+          if (paymentRecord) {
+            try {
+              const payment = JSON.parse(paymentRecord);
+              if (payment.txHash) {
+                return {
+                  ...invoice,
+                  status: 'paid' as const,
+                  txHash: payment.txHash,
+                  paidAt: payment.paidAt || Date.now(),
+                };
+              }
+            } catch { /* ignore */ }
+          }
+
+          // Check individual invoice record
+          const individualInvoice = localStorage.getItem(`invoice_${invoice.invoiceId}`);
+          if (individualInvoice) {
+            try {
+              const invData = JSON.parse(individualInvoice);
+              if (invData.status === 'paid' && invData.txHash) {
+                return { ...invoice, ...invData, status: 'paid' as const };
+              }
+            } catch { /* ignore */ }
+          }
+
+          return invoice;
+        });
+
+        setInvoices(updatedInvoices);
       } catch (error) {
         console.error('Failed to parse invoices:', error);
         setInvoices([]);
@@ -83,21 +124,10 @@ export function CalendarPage() {
       setInvoices([]);
     }
 
-    // Load subscriptions from localStorage - try both original and normalized keys
-    let storedSubscriptions = localStorage.getItem(`subscriptions_${walletAddress}`);
-    if (!storedSubscriptions) {
-      storedSubscriptions = localStorage.getItem(`subscriptions_${normalizedAddress}`);
-    }
-    // Also try checksummed version
-    if (!storedSubscriptions) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('subscriptions_') && key.toLowerCase() === `subscriptions_${normalizedAddress}`) {
-          storedSubscriptions = localStorage.getItem(key);
-          break;
-        }
-      }
-    }
+    // Load subscriptions from localStorage
+    const subscriptionsKey = findKey('subscriptions');
+    const storedSubscriptions = subscriptionsKey ? localStorage.getItem(subscriptionsKey) : null;
+
     if (storedSubscriptions) {
       try {
         setSubscriptions(JSON.parse(storedSubscriptions));
@@ -231,7 +261,8 @@ export function CalendarPage() {
     // Add invoice events
     invoices.forEach(invoice => {
       const invoiceStatus = invoice.invoiceId ? invoiceStatuses[invoice.invoiceId] : undefined;
-      const isPaidFromStatus = invoiceStatus === 'paid';
+      // Check if paid from: API status, invoice.status property, or manual paidStatus toggle
+      const isPaidFromStatus = invoiceStatus === 'paid' || invoice.status === 'paid';
 
       // Invoice created event
       if (invoice.createdAt) {
@@ -243,7 +274,7 @@ export function CalendarPage() {
           amount: invoice.amount,
           token: invoice.settlement || invoice.paymentToken || 'BNB',
           isPaid: isPaidFromStatus || paidStatus[`inv_created_${invoice.invoiceId}`] || false,
-          status: invoiceStatus,
+          status: invoiceStatus || (invoice.status as InvoiceStatus),
           data: invoice,
         });
       }
@@ -258,7 +289,7 @@ export function CalendarPage() {
           amount: invoice.amount,
           token: invoice.settlement || invoice.paymentToken || 'BNB',
           isPaid: isPaidFromStatus || paidStatus[`inv_due_${invoice.invoiceId}`] || false,
-          status: invoiceStatus,
+          status: invoiceStatus || (invoice.status as InvoiceStatus),
           data: invoice,
         });
       }
@@ -562,6 +593,10 @@ export function CalendarPage() {
 
                 {/* Legend */}
                 <div className="mt-6 flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-gray-400">Paid</span>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 rounded-full bg-bnb-yellow"></div>
                     <span className="text-gray-400">Invoice Created</span>

@@ -141,29 +141,30 @@ function GiftCardPage({ pageType }: { pageType: 'create' | 'redeem' | 'history' 
           activePage={getActivePage()}
         />
 
-        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 md:py-12">
+        <main className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
           <div className={`${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
-            <div className="card-shadow rounded-2xl p-6 md:p-8">
-              {pageType === 'create' && (
-                <GiftCardCreateForm
-                  network={networkKey}
-                  walletAddress={walletAddress}
-                />
-              )}
-              {pageType === 'redeem' && (
-                <GiftCardRedeemPage
-                  network={networkKey}
-                  walletAddress={walletAddress}
-                  onConnectWallet={handleConnectWallet}
-                />
-              )}
-              {pageType === 'history' && (
+            {pageType === 'create' && (
+              <GiftCardCreateForm
+                network={networkKey}
+                walletAddress={walletAddress}
+                onConnectWallet={handleConnectWallet}
+              />
+            )}
+            {pageType === 'redeem' && (
+              <GiftCardRedeemPage
+                network={networkKey}
+                walletAddress={walletAddress}
+                onConnectWallet={handleConnectWallet}
+              />
+            )}
+            {pageType === 'history' && (
+              <div className="card-shadow rounded-2xl p-6 md:p-8">
                 <GiftCardHistory
                   network={networkKey}
                   walletAddress={walletAddress}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Education Section for Gift Cards */}
@@ -246,7 +247,14 @@ function GiftCardEducation() {
 }
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState<'invoice' | 'subscription'>('invoice');
+  // Read tab from URL query param
+  const getInitialTab = (): 'invoice' | 'subscription' => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    return tab === 'subscription' ? 'subscription' : 'invoice';
+  };
+
+  const [activeTab, setActiveTab] = useState<'invoice' | 'subscription'>(getInitialTab);
   const [mode, setMode] = useState<'basic' | 'agent'>('basic');
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [lastCreatedData, setLastCreatedData] = useState<InvoiceData | SubscriptionData | null>(null);
@@ -260,6 +268,15 @@ function HomePage() {
     getCurrentNetwork().then(detectedNetwork => {
       setNetwork(detectedNetwork);
     });
+
+    // Listen for URL changes to update tab
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      setActiveTab(tab === 'subscription' ? 'subscription' : 'invoice');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   return (
@@ -274,6 +291,7 @@ function HomePage() {
           onNetworkChange={setNetwork}
           onWalletChanged={setWalletAddress}
           showNav={true}
+          activePage={activeTab}
         />
 
         {/* Main Content */}

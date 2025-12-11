@@ -216,6 +216,41 @@ export function validateCardCredentials(accessCode: string, signature: string): 
 }
 
 /**
+ * Validate card by access code only (signature looked up from storage)
+ */
+export function validateCardByAccessCode(accessCode: string): {
+  valid: boolean;
+  card?: BNBPayCard;
+  error?: string;
+} {
+  const normalizedCode = accessCode.toUpperCase().replace(/[\s-]/g, '');
+  const cards = getAllCards();
+
+  const card = cards.find(c => {
+    const storedCode = c.accessCode.replace(/-/g, '');
+    return storedCode === normalizedCode;
+  });
+
+  if (!card) {
+    return { valid: false, error: 'Invalid access code' };
+  }
+
+  if (card.status === 'redeemed') {
+    return { valid: false, error: 'This card has already been redeemed' };
+  }
+
+  if (card.status === 'cancelled') {
+    return { valid: false, error: 'This card has been cancelled' };
+  }
+
+  if (card.status === 'expired' || (card.expiresAt && card.expiresAt < Date.now())) {
+    return { valid: false, error: 'This card has expired' };
+  }
+
+  return { valid: true, card };
+}
+
+/**
  * Update card status
  */
 export function updateCardStatus(
