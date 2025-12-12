@@ -5,31 +5,35 @@ interface NetworkToggleProps {
   onNetworkChange: (network: NetworkType) => void;
 }
 
-export function NetworkToggle({ network, onNetworkChange }: NetworkToggleProps) {
+/**
+ * NetworkIndicator - Displays the current active network from wallet
+ * No longer a toggle - just shows which network is detected
+ */
+export function NetworkToggle({ network }: NetworkToggleProps) {
   return (
     <div className="inline-flex items-center space-x-2 bg-bnb-gray/50 rounded-xl p-1 border border-bnb-yellow/20">
-      <button
-        onClick={() => onNetworkChange('testnet')}
+      {/* Testnet indicator */}
+      <div
         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center space-x-2 ${
           network === 'testnet'
             ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
-            : 'text-gray-400 hover:text-white'
+            : 'text-gray-500 opacity-50'
         }`}
       >
-        <div className={`w-2 h-2 rounded-full ${network === 'testnet' ? 'bg-bnb-dark' : 'bg-yellow-500'}`}></div>
+        <div className={`w-2 h-2 rounded-full ${network === 'testnet' ? 'bg-bnb-dark animate-pulse' : 'bg-gray-500'}`}></div>
         <span>Testnet</span>
-      </button>
-      <button
-        onClick={() => onNetworkChange('mainnet')}
+      </div>
+      {/* Mainnet indicator */}
+      <div
         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center space-x-2 ${
           network === 'mainnet'
             ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
-            : 'text-gray-400 hover:text-white'
+            : 'text-gray-500 opacity-50'
         }`}
       >
-        <div className={`w-2 h-2 rounded-full ${network === 'mainnet' ? 'bg-bnb-dark' : 'bg-green-500'}`}></div>
+        <div className={`w-2 h-2 rounded-full ${network === 'mainnet' ? 'bg-bnb-dark animate-pulse' : 'bg-gray-500'}`}></div>
         <span>Mainnet</span>
-      </button>
+      </div>
     </div>
   );
 }

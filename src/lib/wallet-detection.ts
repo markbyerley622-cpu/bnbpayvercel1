@@ -16,6 +16,7 @@ export interface WalletLaneDetection {
 }
 
 // Wallets that support eth_signTransaction (can sign raw transactions)
+// Note: MetaMask excluded due to testnet compatibility issues
 const RAW_TX_WALLETS = [
   'isRabby',
   'isFrame',
@@ -74,7 +75,9 @@ export function detectPermit2WalletLane(): WalletLaneDetection {
 
   if (isMetaMask) {
     walletName = 'MetaMask';
-    reasons.push('metamask can sign typed data but not raw tx for bundle');
+    // MetaMask is not recommended due to testnet compatibility issues
+    // Recommend users to use WalletConnect with Trust Wallet or similar
+    reasons.push('MetaMask detected - recommend using WalletConnect with Trust Wallet for better testnet support');
     return {
       lane: 'sign_only',
       walletName,

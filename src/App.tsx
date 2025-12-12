@@ -217,7 +217,7 @@ function GiftCardEducation() {
         <div>
           <h3 className="text-bnb-yellow font-semibold mb-2">Supported Wallets</h3>
           <div className="flex flex-wrap gap-2 mt-2">
-            {['MetaMask', 'Trust Wallet', 'OKX Wallet', 'Binance Web3', 'Rabby', 'Safe Wallet'].map((wallet) => (
+            {['Trust Wallet', 'OKX Wallet', 'Binance Web3', 'Coinbase Wallet', 'Rabby', 'Safe Wallet'].map((wallet) => (
               <span key={wallet} className="px-3 py-1 bg-bnb-gray rounded-full text-xs text-gray-300 border border-gray-700">
                 {wallet}
               </span>

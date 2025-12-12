@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import { WalletConnect } from './WalletConnect';
-import { NetworkToggle } from './NetworkToggle';
 import type { NetworkType } from '../lib/web3';
 
 interface CustomerHeaderProps {
@@ -28,7 +27,7 @@ interface CustomerHeaderProps {
 
 export function CustomerHeader({
   network,
-  onNetworkChange,
+  onNetworkChange: _onNetworkChange,
   onWalletChanged,
   // walletAddress and onOpenReceiptHistory kept for API compatibility
   // but header now uses direct link to /receipt-history.html
@@ -36,12 +35,14 @@ export function CustomerHeader({
   onOpenReceiptHistory: _onOpenReceiptHistory,
   title,
   merchantName,
-  allowNetworkChange = true,
+  allowNetworkChange: _allowNetworkChange = true,
 }: CustomerHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Suppress unused variable warnings
   void _walletAddress;
   void _onOpenReceiptHistory;
+  void _allowNetworkChange;
+  void _onNetworkChange;
 
   return (
     <header className="bg-bnb-dark/80 backdrop-blur-md border-b border-bnb-yellow/10 py-4 px-4 md:px-6 sticky top-0 z-[200] animate-fade-in">
@@ -74,32 +75,14 @@ export function CustomerHeader({
               {/* Wallet Connect */}
               <WalletConnect network={network} onWalletChanged={onWalletChanged} />
 
-              {/* Network Toggle */}
-              {allowNetworkChange ? (
-                <NetworkToggle network={network} onNetworkChange={onNetworkChange} />
-              ) : (
-                <div className="inline-flex items-center space-x-2 bg-bnb-gray/50 rounded-xl p-1 border border-bnb-yellow/20">
-                  <div
-                    className={`px-4 py-2 rounded-lg font-semibold text-sm flex items-center space-x-2 ${
-                      network === 'testnet'
-                        ? 'bg-bnb-yellow text-bnb-dark shadow-lg'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${network === 'testnet' ? 'bg-bnb-dark' : 'bg-green-500'}`}></div>
-                    <span>{network === 'testnet' ? 'Testnet' : 'Mainnet'}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Network Status Indicator */}
-              <div className="flex items-center space-x-2">
-                <div
-                  className={`w-2 h-2 rounded-full animate-pulse ${
-                    network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'
-                  }`}
-                />
-                <span className="text-sm text-gray-400">
+              {/* Network indicator - highlights active network */}
+              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                network === 'mainnet'
+                  ? 'bg-green-500/20 border border-green-500/30'
+                  : 'bg-bnb-yellow/20 border border-bnb-yellow/30'
+              }`}>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'}`}></div>
+                <span className={`text-sm font-semibold ${network === 'mainnet' ? 'text-green-400' : 'text-bnb-yellow'}`}>
                   {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
                 </span>
               </div>
@@ -166,32 +149,16 @@ export function CustomerHeader({
               </a>
             </nav>
 
-            {/* Mobile Network Toggle */}
-            <div className="py-3 border-t border-bnb-gray">
-              <p className="text-xs text-gray-500 mb-2">Network</p>
-              {allowNetworkChange ? (
-                <NetworkToggle network={network} onNetworkChange={onNetworkChange} />
-              ) : (
-                <div className="inline-flex items-center space-x-2 bg-bnb-gray/50 rounded-xl px-4 py-2 border border-bnb-yellow/20">
-                  <div className={`w-2 h-2 rounded-full ${network === 'testnet' ? 'bg-bnb-yellow' : 'bg-green-500'}`}></div>
-                  <span className="text-sm font-semibold text-white">
-                    {network === 'testnet' ? 'Testnet' : 'Mainnet'}
-                  </span>
-                  <span className="text-xs text-gray-500">(Merchant Set)</span>
-                </div>
-              )}
-            </div>
-
-            {/* Mobile Status */}
+            {/* Mobile Network Status */}
             <div className="py-3 border-t border-bnb-gray flex items-center justify-between">
-              <span className="text-sm text-gray-400">Status</span>
-              <div className="flex items-center space-x-2">
-                <div
-                  className={`w-2 h-2 rounded-full animate-pulse ${
-                    network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'
-                  }`}
-                />
-                <span className="text-sm text-bnb-yellow font-semibold">
+              <span className="text-sm text-gray-400">Network</span>
+              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg ${
+                network === 'mainnet'
+                  ? 'bg-green-500/20 border border-green-500/30'
+                  : 'bg-bnb-yellow/20 border border-bnb-yellow/30'
+              }`}>
+                <div className={`w-2 h-2 rounded-full animate-pulse ${network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'}`}></div>
+                <span className={`text-sm font-semibold ${network === 'mainnet' ? 'text-green-400' : 'text-bnb-yellow'}`}>
                   {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
                 </span>
               </div>

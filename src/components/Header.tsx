@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { WalletConnectButton } from './WalletConnection';
-import { NetworkToggle } from './NetworkToggle';
 import type { NetworkType } from '../lib/web3';
 
 interface HeaderProps {
   network: NetworkType;
   onNetworkChange: (network: NetworkType) => void;
   onWalletChanged?: (address: string | null) => void;
-  title?: string;
+  title?: string; // Kept for backward compatibility but not displayed
   showNav?: boolean;
   activePage?: 'home' | 'invoice' | 'subscription' | 'history' | 'calendar' | 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history';
 }
@@ -16,7 +15,7 @@ export function Header({
   network,
   onNetworkChange,
   onWalletChanged,
-  title,
+  title: _title, // Not displayed, kept for API compatibility
   showNav = true,
   activePage = 'home'
 }: HeaderProps) {
@@ -79,10 +78,6 @@ export function Header({
               />
             </button>
 
-            {title && (
-              <h1 className="text-lg md:text-2xl font-bold text-white hidden sm:block">{title}</h1>
-            )}
-
             {/* Desktop Navigation */}
             {showNav && (
               <nav className="hidden lg:flex items-center space-x-1">
@@ -116,7 +111,7 @@ export function Header({
                   <span>Subscription</span>
                 </button>
 
-                {/* Gift Cards - Dropdown menu */}
+                {/* Card - Dropdown menu */}
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setGiftCardDropdownOpen(!giftCardDropdownOpen)}
@@ -129,7 +124,7 @@ export function Header({
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                     </svg>
-                    <span>Gift Cards</span>
+                    <span>Card</span>
                     <svg className={`w-4 h-4 transition-transform ${giftCardDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -207,19 +202,26 @@ export function Header({
             )}
           </div>
 
-          {/* Right: Wallet, Network, Status - added ml-4 for spacing */}
+          {/* Right: Wallet and Network Status */}
           <div className="flex items-center space-x-2 md:space-x-4 ml-4 flex-shrink-0">
-            {/* Desktop: Full controls */}
+            {/* Desktop: Wallet + Network indicator */}
             <div className="hidden md:flex items-center space-x-4">
               <WalletConnectButton
                 network={network}
                 onConnect={onWalletChanged || undefined}
                 onDisconnect={() => onWalletChanged?.(null)}
+                onNetworkChange={onNetworkChange}
               />
-              <NetworkToggle network={network} onNetworkChange={onNetworkChange} />
-              <div className="flex items-center space-x-2">
+              {/* Network indicator - highlights active network */}
+              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                network === 'mainnet'
+                  ? 'bg-green-500/20 border border-green-500/30'
+                  : 'bg-bnb-yellow/20 border border-bnb-yellow/30'
+              }`}>
                 <div className={`w-2 h-2 rounded-full animate-pulse ${network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'}`}></div>
-                <span className="text-sm text-gray-400">{network === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
+                <span className={`text-sm font-semibold ${network === 'mainnet' ? 'text-green-400' : 'text-bnb-yellow'}`}>
+                  {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                </span>
               </div>
             </div>
 
@@ -229,6 +231,7 @@ export function Header({
                 network={network}
                 onConnect={onWalletChanged || undefined}
                 onDisconnect={() => onWalletChanged?.(null)}
+                onNetworkChange={onNetworkChange}
                 compact
               />
             </div>
@@ -255,11 +258,6 @@ export function Header({
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden mt-4 pt-4 border-t border-bnb-gray animate-slide-up">
-            {/* Mobile Title */}
-            {title && (
-              <h1 className="text-xl font-bold text-white mb-4 sm:hidden">{title}</h1>
-            )}
-
             {/* Mobile Navigation */}
             {showNav && (
               <nav className="space-y-1 mb-4">
@@ -293,7 +291,7 @@ export function Header({
                   <span>Subscription</span>
                 </button>
 
-                {/* Gift Cards - Expandable section in mobile menu */}
+                {/* Card - Expandable section in mobile menu */}
                 <div className="space-y-1">
                   <button
                     onClick={() => setMobileGiftCardExpanded(!mobileGiftCardExpanded)}
@@ -307,7 +305,7 @@ export function Header({
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                       </svg>
-                      <span>Gift Cards</span>
+                      <span>Card</span>
                     </div>
                     <svg className={`w-4 h-4 transition-transform ${mobileGiftCardExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -379,18 +377,18 @@ export function Header({
               </nav>
             )}
 
-            {/* Mobile Network Toggle */}
-            <div className="py-3 border-t border-bnb-gray">
-              <p className="text-xs text-gray-500 mb-2">Network</p>
-              <NetworkToggle network={network} onNetworkChange={onNetworkChange} />
-            </div>
-
-            {/* Mobile Status */}
+            {/* Mobile Network Status */}
             <div className="py-3 border-t border-bnb-gray flex items-center justify-between">
-              <span className="text-sm text-gray-400">Status</span>
-              <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-400">Network</span>
+              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg ${
+                network === 'mainnet'
+                  ? 'bg-green-500/20 border border-green-500/30'
+                  : 'bg-bnb-yellow/20 border border-bnb-yellow/30'
+              }`}>
                 <div className={`w-2 h-2 rounded-full animate-pulse ${network === 'mainnet' ? 'bg-green-500' : 'bg-bnb-yellow'}`}></div>
-                <span className="text-sm text-bnb-yellow font-semibold">{network === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
+                <span className={`text-sm font-semibold ${network === 'mainnet' ? 'text-green-400' : 'text-bnb-yellow'}`}>
+                  {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                </span>
               </div>
             </div>
           </div>

@@ -17,6 +17,8 @@ interface WalletConnectButtonProps {
   onConnect?: (address: string) => void;
   /** Callback when wallet disconnects */
   onDisconnect?: () => void;
+  /** Callback when wallet network changes - allows syncing UI with wallet */
+  onNetworkChange?: (network: 'mainnet' | 'testnet') => void;
   /** Compact mode for mobile/header */
   compact?: boolean;
   /** Additional CSS classes */
@@ -29,6 +31,7 @@ export function WalletConnectButton({
   network = 'testnet',
   onConnect,
   onDisconnect: onDisconnectCallback,
+  onNetworkChange,
   compact = false,
   className = '',
   showBalance = false,
@@ -51,17 +54,19 @@ export function WalletConnectButton({
     chainId: network === 'mainnet' ? bsc.id : bscTestnet.id,
   });
 
-  // Target chain based on network prop
-  // network='testnet' expects wallet on chain 97 (bscTestnet)
-  // network='mainnet' expects wallet on chain 56 (bsc)
-  const targetChainId = network === 'mainnet' ? bsc.id : bscTestnet.id;
+  // Determine the actual network based on wallet's chainId
+  // The wallet's chainId is the source of truth, not the network prop
+  const walletNetworkType = chainId === bsc.id ? 'mainnet' : chainId === bscTestnet.id ? 'testnet' : null;
 
   // Check if on wrong network:
   // - Must be connected
-  // - Wallet chainId must be defined and a supported BNB chain (56 or 97)
-  // - Wallet chainId must not match the app's expected target chain
-  const isSupportedChain = chainId === bsc.id || chainId === bscTestnet.id;
-  const isWrongNetwork = isConnected && isSupportedChain && chainId !== targetChainId;
+  // - Wallet chainId must be defined
+  // - Wallet must be on a supported chain (56 or 97)
+  // Only show "wrong network" if connected to an unsupported chain
+  const isWrongNetwork = isConnected && chainId !== undefined && chainId !== bsc.id && chainId !== bscTestnet.id;
+
+  // For display purposes, use wallet's actual network if available
+  const effectiveNetwork = walletNetworkType || network;
 
   // Notify parent when connected
   useEffect(() => {
@@ -69,6 +74,18 @@ export function WalletConnectButton({
       onConnect?.(address);
     }
   }, [isConnected, address, onConnect]);
+
+  // Sync app network state when wallet chain changes
+  // This allows the app to follow the wallet's network instead of fighting it
+  useEffect(() => {
+    if (isConnected && chainId && onNetworkChange) {
+      if (chainId === bsc.id) {
+        onNetworkChange('mainnet');
+      } else if (chainId === bscTestnet.id) {
+        onNetworkChange('testnet');
+      }
+    }
+  }, [isConnected, chainId, onNetworkChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -99,11 +116,12 @@ export function WalletConnectButton({
     toast.info('Wallet disconnected');
   }, [disconnect, onDisconnectCallback, toast]);
 
-  // Handle network switch
+  // Handle network switch - default to testnet when on unsupported chain
   const handleSwitchNetwork = useCallback(async () => {
     try {
-      await switchChain({ chainId: targetChainId });
-      toast.success(`Switched to ${network === 'mainnet' ? 'BNB Mainnet' : 'BNB Testnet'}`);
+      // Switch to testnet by default when on unsupported chain
+      await switchChain({ chainId: bscTestnet.id });
+      toast.success('Switched to BNB Testnet');
     } catch (error: any) {
       console.error('Network switch error:', error);
       if (error?.code === 4001) {
@@ -112,7 +130,7 @@ export function WalletConnectButton({
         toast.error('Failed to switch network. Please try manually.');
       }
     }
-  }, [switchChain, targetChainId, network, toast]);
+  }, [switchChain, toast]);
 
   // Copy address to clipboard
   const copyAddress = useCallback(() => {
@@ -141,8 +159,17 @@ export function WalletConnectButton({
   // Loading state
   const isLoading = isConnecting || isReconnecting || isSwitching;
 
-  // Wrong network warning button
+  // Get descriptive network name for the button
+  const getNetworkName = (id: number | undefined) => {
+    if (id === bsc.id) return 'Mainnet';
+    if (id === bscTestnet.id) return 'Testnet';
+    return 'Unknown';
+  };
+
+  // Wrong network warning button - only shows when on unsupported chain
   if (isConnected && isWrongNetwork) {
+    const currentNetworkName = getNetworkName(chainId);
+
     return (
       <button
         onClick={handleSwitchNetwork}
@@ -154,12 +181,13 @@ export function WalletConnectButton({
           ${isSwitching ? 'opacity-50 cursor-wait' : 'cursor-pointer'}
           ${className}
         `}
+        title={`Switch from ${currentNetworkName} to BNB Chain`}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <span className="text-sm font-semibold">
-          {isSwitching ? 'Switching...' : 'Wrong Network'}
+          {isSwitching ? 'Switching...' : 'Switch to BNB Chain'}
         </span>
       </button>
     );
@@ -288,7 +316,7 @@ export function WalletConnectButton({
               </button>
 
               <a
-                href={`https://${network === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${address}`}
+                href={`https://${effectiveNetwork === 'mainnet' ? '' : 'testnet.'}bscscan.com/address/${address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-gray-300 hover:bg-bnb-yellow/10 hover:text-white transition-colors"
