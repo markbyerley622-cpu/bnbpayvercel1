@@ -109,10 +109,20 @@ export function WalletConnectButton({
   }, [open, toast]);
 
   // Handle disconnect
-  const handleDisconnect = useCallback(() => {
-    disconnect();
+  const handleDisconnect = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Close dropdown first
     setShowDropdown(false);
+
+    // Disconnect wallet
+    disconnect();
+
+    // Notify parent
     onDisconnectCallback?.();
+
+    // Show toast
     toast.info('Wallet disconnected');
   }, [disconnect, onDisconnectCallback, toast]);
 
