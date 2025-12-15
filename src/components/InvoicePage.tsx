@@ -14,7 +14,7 @@ import { ReceiptViewer } from './ReceiptViewer';
 import { createInvoiceReceipt, type PaymentReceipt as StoredReceipt } from '../lib/receipt-storage';
 import { downloadReceiptPng } from '../lib/receipt-generator';
 import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, getTokenCapabilities, type Invoice as ApiInvoice, type NetworkKey } from '../lib/bnbpay-api';
-import { payInvoiceGasless, isPermit2Approved, approvePermit2, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
+import { payInvoiceGasless, isPermit2Approved, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
 import { useToast } from '../contexts/ToastContext';
 
 interface InvoicePageProps {
@@ -498,35 +498,74 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
           return;
         }
 
-        // Fetch token capabilities from API (authoritative source)
-        const networkKey: NetworkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
-        const tokenCapabilities = await getTokenCapabilities(selectedPayToken, networkKey);
+        // FAST PATH: Hardcoded capabilities for known tokens (avoids slow RPC calls)
+        const KNOWN_TOKEN_CAPS: Record<string, { eip3009: boolean; eip2612: boolean }> = {
+          'USD1': { eip3009: false, eip2612: false },   // Plain ERC20, uses Permit2
+          'WUSD': { eip3009: false, eip2612: true },    // Has EIP-2612 permit
+          'XUSD': { eip3009: true, eip2612: false },    // Has EIP-3009 transferWithAuthorization
+          'USDT': { eip3009: false, eip2612: false },   // Plain ERC20
+          'USDC': { eip3009: false, eip2612: false },   // Plain ERC20 (on BNB testnet)
+          'FDUSD': { eip3009: false, eip2612: false },  // Plain ERC20
+        };
 
         let hasEip3009 = false;
         let hasEip2612 = false;
-        let hasPermit2 = false;
 
-        if (tokenCapabilities) {
-          // Use API capabilities (authoritative)
-          hasEip3009 = tokenCapabilities.supportsEIP3009 || false;
-          hasEip2612 = tokenCapabilities.supportsEIP2612 || false;
-          hasPermit2 = tokenCapabilities.supportsPermit2 || false;
-          console.log(`Token ${selectedPayToken} capabilities from API:`, {
-            eip3009: hasEip3009,
-            eip2612: hasEip2612,
-            permit2: hasPermit2,
-          });
+        // Use hardcoded caps if available (instant)
+        const knownCaps = KNOWN_TOKEN_CAPS[selectedPayToken] || KNOWN_TOKEN_CAPS[selectedPayToken.toUpperCase()];
+        if (knownCaps) {
+          hasEip3009 = knownCaps.eip3009;
+          hasEip2612 = knownCaps.eip2612;
+          console.log(`Token ${selectedPayToken} capabilities (hardcoded):`, knownCaps);
         } else {
-          // Fallback to on-chain detection if token not in API
-          console.log(`Token ${selectedPayToken} not found in API, using on-chain detection`);
-          [hasEip3009, hasEip2612] = await Promise.all([
-            supportsEIP3009(tokenAddress, provider),
-            supportsEIP2612(tokenAddress, provider),
-          ]);
+          // Try API first (faster than on-chain)
+          const networkKey: NetworkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
+          try {
+            const tokenCapabilities = await Promise.race([
+              getTokenCapabilities(selectedPayToken, networkKey),
+              new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+            ]);
+
+            if (tokenCapabilities) {
+              hasEip3009 = tokenCapabilities.supportsEIP3009 || false;
+              hasEip2612 = tokenCapabilities.supportsEIP2612 || false;
+              console.log(`Token ${selectedPayToken} capabilities from API:`, {
+                eip3009: hasEip3009,
+                eip2612: hasEip2612,
+              });
+            }
+          } catch {
+            // API failed or timed out, fallback to on-chain (with timeout)
+            console.log(`Token ${selectedPayToken} API failed, using on-chain detection`);
+            try {
+              const [eip3009Result, eip2612Result] = await Promise.race([
+                Promise.all([
+                  supportsEIP3009(tokenAddress, provider),
+                  supportsEIP2612(tokenAddress, provider),
+                ]),
+                new Promise<[boolean, boolean]>((_, reject) =>
+                  setTimeout(() => reject(new Error('timeout')), 5000)
+                )
+              ]);
+              hasEip3009 = eip3009Result;
+              hasEip2612 = eip2612Result;
+            } catch {
+              console.log(`On-chain detection timed out, assuming plain ERC20`);
+              // Assume plain ERC20 if detection times out
+            }
+          }
         }
 
-        // Check Permit2 approval status (always on-chain)
-        const isApproved = hasPermit2 ? await isPermit2Approved(tokenAddress, walletAddress, provider) : false;
+        // Check Permit2 approval status in parallel (quick allowance check)
+        let isApproved = false;
+        try {
+          isApproved = await Promise.race([
+            isPermit2Approved(tokenAddress, walletAddress, provider, network),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000))
+          ]);
+        } catch {
+          // Ignore approval check errors
+        }
 
         console.log(`Token ${selectedPayToken} gasless support:`, {
           eip3009: hasEip3009,
@@ -537,8 +576,12 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
         // Track individual support types
         setSupportsEip3009(hasEip3009);
         setSupportsEip2612(hasEip2612);
-        // EIP-3009 is preferred, then EIP-2612, then Permit2
-        setSupportsPermit(hasEip3009 || hasEip2612 || isApproved);
+        // Gasless is ALWAYS available for ERC20 tokens:
+        // - EIP-3009 tokens: direct transfer authorization (best)
+        // - EIP-2612 tokens: native permit (good)
+        // - Other ERC20s: Permit2 bundle flow (approve + pay atomically)
+        // The bundle flow handles approval automatically, no prior setup needed
+        setSupportsPermit(true); // Always enable gasless for ERC20 tokens
         setPermit2Approved(isApproved);
       } catch (error) {
         console.error('Failed to check gasless support:', error);
@@ -1092,7 +1135,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                 <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                   <span>Powered by</span>
                   <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
                   </div>
                 </div>
               </div>
@@ -1573,84 +1616,28 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                   )}
 
                   {!checkingPermit2 && !supportsPermit && !permit2Approved && walletAddress && (
-                    <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                      <div className="flex flex-col space-y-2">
-                        <div className="flex items-start space-x-2">
-                          <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                          </svg>
-                          <div className="flex-1">
-                            <p className="text-blue-400 text-xs mb-2">
-                              <strong>Gasless payments:</strong> To enable gasless payments for this token, you need to approve Permit2 (one-time setup).
-                            </p>
-                            <button
-                              onClick={async () => {
-                                try {
-                                  setCheckingPermit2(true);
-                                  const config = NETWORKS[network];
-                                  const tokens = config.tokens as Record<string, string>;
-                                  const tokenAddress = tokens[selectedPayToken] || tokens[selectedPayToken.toUpperCase()];
-
-                                  const signer = await getSigner();
-                                  await approvePermit2(tokenAddress, signer);
-
-                                  // Recheck gasless support
-                                  const provider = getProvider();
-                                  if (provider && walletAddress) {
-                                    const isApproved = await isPermit2Approved(tokenAddress, walletAddress, provider);
-                                    setPermit2Approved(isApproved);
-                                    setSupportsPermit(isApproved);
-                                    if (isApproved) {
-                                      setPaymentMode('gasless'); // Auto-switch to gasless mode
-                                    }
-                                  }
-
-                                  toast.success('Permit2 approved! Gasless payments are now enabled for this token.');
-                                } catch (error: any) {
-                                  console.error('Failed to approve Permit2:', error);
-
-                                  // Handle different error types
-                                  let errorMsg = 'Failed to approve Permit2';
-                                  if (error.code === 4001 || error.code === 'ACTION_REJECTED') {
-                                    errorMsg = 'Transaction rejected. You can still pay using "Pay with Gas" mode.';
-                                  } else if (error.message) {
-                                    errorMsg = `Failed to approve Permit2: ${error.message}`;
-                                  }
-
-                                  setError(errorMsg);
-                                  setTimeout(() => setError(null), 5000); // Clear error after 5s
-                                } finally {
-                                  setCheckingPermit2(false);
-                                }
-                              }}
-                              disabled={checkingPermit2}
-                              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white text-xs rounded-lg font-semibold transition-all disabled:cursor-not-allowed flex items-center space-x-2"
-                            >
-                              {checkingPermit2 ? (
-                                <>
-                                  <svg className="animate-spin w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                  </svg>
-                                  <span>Approving...</span>
-                                </>
-                              ) : (
-                                <span>Approve Permit2 for {selectedPayToken}</span>
-                              )}
-                            </button>
-                          </div>
+                    <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                      <div className="flex items-start space-x-2">
+                        <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-green-400 text-xs">
+                            <strong>Gasless ready via Permit2 Bundle:</strong> No prior approval needed! When you pay, you'll sign the approval + payment together. The relayer handles everything in one atomic transaction.
+                          </p>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {supportsPermit && !checkingPermit2 && (
+                  {supportsPermit && !checkingPermit2 && (supportsEip3009 || supportsEip2612 || permit2Approved) && (
                     <div className="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
                       <div className="flex items-start space-x-2">
                         <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                         <p className="text-green-400 text-xs">
-                          {permit2Approved ? 'Gasless ready: Permit2 approved' : supportsEip3009 ? 'Gasless ready: Token supports EIP-3009' : 'Gasless ready: Token supports EIP-2612'}
+                          {supportsEip3009 ? 'Gasless ready: Token supports EIP-3009 (best)' : supportsEip2612 ? 'Gasless ready: Token supports EIP-2612' : 'Gasless ready: Permit2 approved'}
                         </p>
                       </div>
                     </div>
@@ -1766,7 +1753,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                 <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                   <span>Powered by</span>
                   <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-center space-x-1 text-xs text-gray-600">
@@ -2014,36 +2001,10 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                   )}
 
                   {!checkingPermit2 && !supportsPermit && !permit2Approved && walletAddress && (
-                    <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-2">
-                      <p className="text-blue-400 text-xs text-center">
-                        Enable gasless by approving Permit2
+                    <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <p className="text-green-400 text-xs text-center">
+                        ✓ Gasless via Permit2 Bundle
                       </p>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const config = NETWORKS[network];
-                            const tokens = config.tokens as Record<string, string>;
-                            const tokenAddress = tokens[selectedPayToken] || tokens[selectedPayToken.toUpperCase()];
-
-                            const signer = await getSigner();
-                            await approvePermit2(tokenAddress, signer);
-                            toast.success('Permit2 approved! Gasless payments enabled.');
-                            // Recheck gasless support
-                            const provider = getProvider();
-                            if (provider && walletAddress) {
-                              const isApproved = await isPermit2Approved(tokenAddress, walletAddress, provider);
-                              setPermit2Approved(isApproved);
-                              setSupportsPermit(isApproved);
-                            }
-                          } catch (error: any) {
-                            console.error('Failed to approve Permit2:', error);
-                            toast.error(error.message || 'Failed to approve Permit2. Please try again.');
-                          }
-                        }}
-                        className="w-full px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg font-semibold transition-all"
-                      >
-                        Approve Permit2
-                      </button>
                     </div>
                   )}
 
@@ -2187,7 +2148,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
               <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                 <span>Powered by</span>
                 <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-center space-x-1 text-xs text-gray-600">

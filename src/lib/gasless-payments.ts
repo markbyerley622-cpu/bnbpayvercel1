@@ -8,8 +8,10 @@
 import { ethers } from 'ethers';
 import {
   relayPayment,
+  relayPermit2Bundle,
   buildPaymentIntent,
   type RelayPaymentRequest,
+  type Permit2BundleRequest,
   type BuildIntentRequest,
   type NetworkKey,
 } from './bnbpay-api';
@@ -30,8 +32,94 @@ export function getPermit2Address(network: NetworkType): string {
 }
 
 // EIP-712 domain for Permit2
+// NOTE: Different Permit2 deployments may have different domain configurations
+// We try without version first (canonical Uniswap), then with version if that fails
 const PERMIT2_DOMAIN_NAME = 'Permit2';
-const PERMIT2_DOMAIN_VERSION = '1';
+
+/**
+ * Debug: Fetch the actual DOMAIN_SEPARATOR from the Permit2 contract
+ * This helps diagnose domain mismatch issues
+ */
+export async function getPermit2DomainSeparator(
+  provider: ethers.Provider,
+  network: NetworkType = 'testnet'
+): Promise<string> {
+  const permit2Address = getPermit2Address(network);
+  const permit2 = new ethers.Contract(
+    permit2Address,
+    ['function DOMAIN_SEPARATOR() external view returns (bytes32)'],
+    provider
+  );
+  return await permit2.DOMAIN_SEPARATOR();
+}
+
+/**
+ * Compute what we think the domain separator should be (without version)
+ */
+export function computePermit2DomainSeparator(chainId: number, permit2Address: string): string {
+  const typeHash = ethers.keccak256(
+    ethers.toUtf8Bytes('EIP712Domain(string name,uint256 chainId,address verifyingContract)')
+  );
+  const nameHash = ethers.keccak256(ethers.toUtf8Bytes('Permit2'));
+
+  return ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ['bytes32', 'bytes32', 'uint256', 'address'],
+      [typeHash, nameHash, chainId, permit2Address]
+    )
+  );
+}
+
+/**
+ * Compute domain separator WITH version (some custom deployments use this)
+ */
+export function computePermit2DomainSeparatorWithVersion(chainId: number, permit2Address: string): string {
+  const typeHash = ethers.keccak256(
+    ethers.toUtf8Bytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+  );
+  const nameHash = ethers.keccak256(ethers.toUtf8Bytes('Permit2'));
+  const versionHash = ethers.keccak256(ethers.toUtf8Bytes('1'));
+
+  return ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
+      [typeHash, nameHash, versionHash, chainId, permit2Address]
+    )
+  );
+}
+
+/**
+ * Debug: Check which domain separator format matches the contract
+ */
+export async function debugPermit2Domain(
+  provider: ethers.Provider,
+  network: NetworkType = 'testnet'
+): Promise<{ actual: string; withoutVersion: string; withVersion: string; matches: 'none' | 'withoutVersion' | 'withVersion' }> {
+  const permit2Address = getPermit2Address(network);
+  const config = NETWORKS[network];
+  const chainId = config.chainIdNumber;
+
+  const actual = await getPermit2DomainSeparator(provider, network);
+  const withoutVersion = computePermit2DomainSeparator(chainId, permit2Address);
+  const withVersion = computePermit2DomainSeparatorWithVersion(chainId, permit2Address);
+
+  let matches: 'none' | 'withoutVersion' | 'withVersion' = 'none';
+  if (actual.toLowerCase() === withoutVersion.toLowerCase()) {
+    matches = 'withoutVersion';
+  } else if (actual.toLowerCase() === withVersion.toLowerCase()) {
+    matches = 'withVersion';
+  }
+
+  console.log('🔍 Permit2 Domain Separator Debug:');
+  console.log('   Contract address:', permit2Address);
+  console.log('   Chain ID:', chainId);
+  console.log('   Actual from contract:', actual);
+  console.log('   Computed (no version):', withoutVersion);
+  console.log('   Computed (with version):', withVersion);
+  console.log('   Matches:', matches);
+
+  return { actual, withoutVersion, withVersion, matches };
+}
 
 // Permit2 EIP-712 types for standard PermitTransferFrom (without witness - NOT USED)
 const PERMIT2_TYPES = {
@@ -168,9 +256,10 @@ export async function signPermit2(params: {
   permit2Address: string; // Network-specific Permit2 address
   signer: ethers.Signer;
 }): Promise<string> {
+  // CRITICAL: Permit2 domain does NOT include version
+  // Domain separator: EIP712Domain(string name,uint256 chainId,address verifyingContract)
   const domain = {
     name: PERMIT2_DOMAIN_NAME,
-    version: PERMIT2_DOMAIN_VERSION,
     chainId: params.chainId,
     verifyingContract: params.permit2Address,
   };
@@ -208,9 +297,10 @@ export async function signPermit2WithWitness(params: {
   };
   signer: ethers.Signer;
 }): Promise<string> {
+  // CRITICAL: Permit2 domain does NOT include version
+  // Domain separator: EIP712Domain(string name,uint256 chainId,address verifyingContract)
   const domain = {
     name: PERMIT2_DOMAIN_NAME,
-    version: PERMIT2_DOMAIN_VERSION,
     chainId: params.chainId,
     verifyingContract: params.permit2Address, // Use network-specific address
   };
@@ -226,7 +316,35 @@ export async function signPermit2WithWitness(params: {
     witness: params.witness,
   };
 
-  return await params.signer.signTypedData(domain, PERMIT2_WITNESS_TYPES, message);
+  // Debug logging
+  console.log('🔐 Signing Permit2 with Witness:');
+  console.log('   Domain:', JSON.stringify(domain, null, 2));
+  console.log('   Message:', JSON.stringify(message, null, 2));
+  console.log('   Types:', JSON.stringify(PERMIT2_WITNESS_TYPES, null, 2));
+  const signerAddress = await params.signer.getAddress();
+  console.log('   Signer address:', signerAddress);
+
+  const signature = await params.signer.signTypedData(domain, PERMIT2_WITNESS_TYPES, message);
+  console.log('   Signature:', signature);
+
+  // VERIFY SIGNATURE LOCALLY - This proves frontend is correct
+  try {
+    const typedDataHash = ethers.TypedDataEncoder.hash(domain, PERMIT2_WITNESS_TYPES, message);
+    const recoveredAddress = ethers.recoverAddress(typedDataHash, signature);
+    console.log('🔍 LOCAL SIGNATURE VERIFICATION:');
+    console.log('   EIP-712 hash:', typedDataHash);
+    console.log('   Recovered signer:', recoveredAddress);
+    console.log('   Expected signer:', signerAddress);
+    if (recoveredAddress.toLowerCase() === signerAddress.toLowerCase()) {
+      console.log('   ✅ SIGNATURE VALID - Frontend is signing correctly!');
+    } else {
+      console.error('   ❌ SIGNATURE MISMATCH - Frontend bug detected!');
+    }
+  } catch (verifyError) {
+    console.warn('   Could not verify signature locally:', verifyError);
+  }
+
+  return signature;
 }
 
 /**
@@ -660,9 +778,24 @@ export async function payInvoiceGasless(params: {
     const permit2Address = getPermit2Address(params.network);
     console.log('Using Permit2 address:', permit2Address);
 
-    // NOTE: Permit2 approval check skipped because Permit2 may not be deployed on BNB testnet
-    // The relayer will handle the actual token transfer via router
-    // In production, you would check: await erc20.allowance(payer, permit2Address)
+    // DEBUG: Check which domain format the Permit2 contract uses
+    try {
+      const domainDebug = await debugPermit2Domain(params.provider, params.network);
+      if (domainDebug.matches === 'none') {
+        console.error('⚠️ WARNING: Domain separator mismatch! The Permit2 contract uses a different domain format than expected.');
+      }
+    } catch (e) {
+      console.warn('Could not debug Permit2 domain:', e);
+    }
+
+    // Check if Permit2 is already approved for this token
+    const hasPermit2Approval = await isPermit2Approved(
+      params.tokenAddress,
+      payerAddress,
+      params.provider,
+      params.network
+    );
+    console.log('Permit2 already approved:', hasPermit2Approval);
 
     // Use a simple incrementing nonce or random value
     // Permit2 contract may not be deployed on BNB testnet at the universal address
@@ -716,29 +849,116 @@ export async function payInvoiceGasless(params: {
       // referenceHash omitted - computed by server from reference string
     };
 
-    relayRequest = {
-      network: networkKey as NetworkKey,
-      scheme: 'permit2',
-      intent: relayIntent,
-      witness: normalizedWitness,
-      witnessSignature,
-      reference: canonicalReference,
-      permit2: {
-        permit: {
-          permitted: {
-            token: params.tokenAddress,
-            amount: apiAmountWei, // Use API amount for consistency
-          },
-          nonce,
-          deadline,
+    const permit2Data = {
+      permit: {
+        permitted: {
+          token: params.tokenAddress,
+          amount: apiAmountWei, // Use API amount for consistency
         },
-        transferDetails: {
-          to: config.contracts.bnbPayRouter, // Router address, not merchant
-          requestedAmount: apiAmountWei, // Use API amount for consistency
-        },
-        signature: permit2Sig,
+        nonce,
+        deadline,
       },
+      transferDetails: {
+        to: config.contracts.bnbPayRouter, // Router address, not merchant
+        requestedAmount: apiAmountWei, // Use API amount for consistency
+      },
+      signature: permit2Sig,
     };
+
+    if (!hasPermit2Approval) {
+      // Use bundle endpoint: approve + pay atomically
+      console.log('🔄 Using Permit2 bundle flow (approve + pay)...');
+
+      // Create and sign the approval transaction
+      const erc20Interface = new ethers.Interface([
+        'function approve(address spender, uint256 amount) external returns (bool)',
+      ]);
+      const approveData = erc20Interface.encodeFunctionData('approve', [
+        permit2Address,
+        ethers.MaxUint256,
+      ]);
+
+      // Get current nonce and gas price for the approval tx
+      const txNonce = await params.provider.getTransactionCount(payerAddress, 'pending');
+      const feeData = await params.provider.getFeeData();
+
+      // Build the approval transaction
+      const approveTx = {
+        to: params.tokenAddress,
+        data: approveData,
+        nonce: txNonce,
+        chainId: config.chainIdNumber,
+        gasLimit: 100000n, // Standard approve gas
+        maxFeePerGas: feeData.maxFeePerGas || ethers.parseUnits('5', 'gwei'),
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || ethers.parseUnits('1', 'gwei'),
+        type: 2, // EIP-1559
+      };
+
+      console.log('Signing approval transaction...');
+      const signedApproveTx = await params.signer.signTransaction(approveTx);
+      console.log('Approval tx signed:', signedApproveTx.slice(0, 66) + '...');
+
+      // Get current block for targeting
+      const currentBlock = await params.provider.getBlockNumber();
+
+      // Build bundle request
+      const bundleRequest: Permit2BundleRequest = {
+        network: networkKey as NetworkKey,
+        intent: relayIntent,
+        witness: normalizedWitness,
+        witnessSignature,
+        reference: canonicalReference,
+        permit2: permit2Data,
+        approvalTx: signedApproveTx,
+        targetBlock: currentBlock + 2, // Target 2 blocks ahead
+        maxBlockNumber: currentBlock + 10, // Valid for next 10 blocks
+        minTimestamp: Math.floor(Date.now() / 1000),
+        maxTimestamp: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+      };
+
+      console.log('Submitting Permit2 bundle to relay...');
+      console.log('Bundle request:', {
+        ...bundleRequest,
+        approvalTx: bundleRequest.approvalTx.slice(0, 66) + '...',
+        witnessSignature: bundleRequest.witnessSignature.slice(0, 66) + '...',
+      });
+
+      // Submit bundle
+      let bundleResponse;
+      try {
+        bundleResponse = await relayPermit2Bundle(bundleRequest);
+      } catch (error: any) {
+        console.error('❌ Permit2 bundle relay failed:', error);
+        console.error('Error details:', error.details);
+        console.error('Full error:', JSON.stringify(error, null, 2));
+        throw error;
+      }
+
+      console.log('✅ Permit2 bundle accepted');
+      console.log('Bundle ID:', bundleResponse.bundleId);
+      console.log('Target Block:', bundleResponse.targetBlock);
+      console.log('Payment ID:', bundleResponse.paymentId);
+
+      // Note: Bundle may take a few blocks to be included
+      // Return bundleId as txHash for now - caller should poll for confirmation
+      return {
+        txHash: bundleResponse.bundleId, // Bundle ID until tx is mined
+        paymentId: bundleResponse.paymentId,
+      };
+    } else {
+      // Use regular relay endpoint (Permit2 already approved)
+      console.log('✓ Permit2 already approved, using regular relay...');
+
+      relayRequest = {
+        network: networkKey as NetworkKey,
+        scheme: 'permit2',
+        intent: relayIntent,
+        witness: normalizedWitness,
+        witnessSignature,
+        reference: canonicalReference,
+        permit2: permit2Data,
+      };
+    }
   }
 
   console.log('Submitting gasless payment to relay...');

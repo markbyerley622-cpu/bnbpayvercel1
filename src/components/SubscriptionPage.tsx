@@ -565,7 +565,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                 <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
                   <span>Powered by</span>
                   <div className="bg-bnb-gray/50 rounded-full px-3 py-1 border border-bnb-yellow/10">
-                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-4 w-auto opacity-90" />
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-4 w-auto opacity-90 rounded-md" />
                   </div>
                 </div>
               </div>
@@ -948,7 +948,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
                 <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                   <span>Powered by</span>
                   <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                    <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-center space-x-1 text-xs text-gray-600">
@@ -1263,7 +1263,7 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
               <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                 <span>Powered by</span>
                 <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                  <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-center space-x-1 text-xs text-gray-600">

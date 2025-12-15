@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAppKit } from '@reown/appkit/react';
 import { InvoiceCreator } from './components/InvoiceCreator';
 import { SubscriptionCreator } from './components/SubscriptionCreator';
 import { AgentFlowPanel } from './components/AgentFlowPanel';
@@ -261,6 +262,9 @@ function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
+  // Get the AppKit modal opener
+  const { open: openWalletModal } = useAppKit();
+
   useEffect(() => {
     setMounted(true);
 
@@ -426,23 +430,20 @@ function HomePage() {
                 )}
               </div>
 
-              {/* Wallet Connection Overlay - shown on hover when no wallet is connected */}
+              {/* Wallet Connection Overlay - always visible on mobile, shown on hover on desktop */}
               {!walletAddress && (
-                <div className="absolute inset-0 bg-bnb-dark/95 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto">
-                  <div className="text-center px-8">
-                    <img src="/bnbpay-logo.png" alt="BNBPay" className="h-20 w-auto mx-auto mb-6" />
-                    <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
-                    <p className="text-gray-400 mb-6">
+                <div className="absolute inset-0 bg-bnb-dark/95 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto z-10">
+                  <div className="text-center px-4 md:px-8">
+                    <img src="/bnbpay-logo.png" alt="BNBPay" className="h-16 md:h-20 w-auto mx-auto mb-4 md:mb-6" />
+                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3">Connect Your Wallet</h3>
+                    <p className="text-gray-400 text-sm md:text-base mb-4 md:mb-6">
                       Connect your wallet to create {activeTab === 'invoice' ? 'invoices' : 'subscriptions'}
                     </p>
                     <button
-                      onClick={() => {
-                        const walletBtn = document.querySelector('[class*="WalletConnect"] button');
-                        if (walletBtn) (walletBtn as HTMLButtonElement).click();
-                      }}
-                      className="inline-flex items-center space-x-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                      onClick={() => openWalletModal()}
+                      className="inline-flex items-center space-x-2 md:space-x-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold px-6 md:px-8 py-3 md:py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                       </svg>
                       <span>Connect Wallet</span>
@@ -527,7 +528,7 @@ function HomePage() {
             <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
               <span>Powered by</span>
               <div className="bg-bnb-gray/50 rounded-full px-4 py-2 border border-bnb-yellow/10">
-                <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90" />
+                <img src="/pepaylabs.png" alt="Pepay Labs" className="h-5 w-auto opacity-90 rounded-md" />
               </div>
             </div>
             <div className="mt-3 flex items-center justify-center space-x-1 text-xs text-gray-600">

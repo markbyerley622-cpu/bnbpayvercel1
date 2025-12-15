@@ -126,9 +126,10 @@ export function DatePicker({
   const handleDayClick = (day: number) => {
     if (isDateDisabled(day)) return;
 
-    const selectedDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
-    // Format as YYYY-MM-DD for input[type="date"] compatibility
-    const formatted = selectedDate.toISOString().split('T')[0];
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth() + 1; // getMonth() is 0-indexed
+    // Format as YYYY-MM-DD using local date (avoids timezone shift from toISOString)
+    const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     onChange(formatted);
     setIsOpen(false);
   };
@@ -265,7 +266,11 @@ export function DatePicker({
               onClick={() => {
                 const today = new Date();
                 setViewDate(today);
-                const formatted = today.toISOString().split('T')[0];
+                // Format as YYYY-MM-DD using local date (avoids timezone shift from toISOString)
+                const year = today.getFullYear();
+                const month = today.getMonth() + 1;
+                const day = today.getDate();
+                const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 onChange(formatted);
                 setIsOpen(false);
               }}

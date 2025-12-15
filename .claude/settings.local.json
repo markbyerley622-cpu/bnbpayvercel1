@@ -31,7 +31,9 @@
       "Bash(npm install:*)",
       "WebSearch",
       "Bash(npm run typecheck:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx vite:*)"
     ],
     "deny": [],
     "ask": []
