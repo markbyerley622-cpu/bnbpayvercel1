@@ -798,3 +798,70 @@ nav.scrolled {
     min-height: 100dvh;
   }
 }
+
+/* ============================================
+   REOWN APPKIT (WALLET CONNECT) MODAL FIXES
+   Fix mobile centering and overflow issues
+   ============================================ */
+
+/* AppKit modal container - ensure proper centering on all devices */
+w3m-modal {
+  --w3m-z-index: 99999 !important;
+}
+
+/* Fix modal positioning on mobile */
+@media (max-width: 768px) {
+  /* Ensure modal is centered and doesn't overflow */
+  w3m-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+  }
+
+  /* Prevent modal from being cut off */
+  w3m-modal::part(container) {
+    max-width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 2rem) !important;
+    max-height: calc(100dvh - 2rem) !important;
+    margin: auto !important;
+    overflow: auto !important;
+  }
+
+  /* Center the modal card properly */
+  appkit-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Ensure the modal card doesn't overflow on small screens */
+  appkit-modal > div {
+    max-width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 2rem) !important;
+    max-height: calc(100dvh - 2rem) !important;
+    overflow-y: auto !important;
+    margin: 0 auto !important;
+  }
+}
+
+/* Ensure AppKit backdrop covers full screen */
+w3m-modal::part(backdrop),
+appkit-modal::part(backdrop) {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Better z-index handling */
+w3m-modal,
+appkit-modal {
+  z-index: 99999 !important;
+}

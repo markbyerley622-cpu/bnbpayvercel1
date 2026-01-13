@@ -204,23 +204,24 @@ export const FLEX_WITNESS_TYPES = {
 };
 
 // Permit2 with witness EIP-712 types
+// CRITICAL FIX: The router passes witness as bytes32 (EIP-712 digest of FlexWitness),
+// NOT as a nested struct. We must:
+// 1. Compute witnessDigest = hashTypedDataV4(routerDomain, FlexWitnessTypes, witness)
+// 2. Sign Permit2 with witness: witnessDigest (bytes32)
+//
+// The witnessTypeString the router uses is:
+// "FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)"
 export const PERMIT2_WITNESS_TYPES = {
   PermitWitnessTransferFrom: [
     { name: 'permitted', type: 'TokenPermissions' },
     { name: 'spender', type: 'address' },
     { name: 'nonce', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
-    { name: 'witness', type: 'FlexWitness' },
+    { name: 'witness', type: 'bytes32' },  // FIXED: bytes32 (router EIP-712 digest), not FlexWitness
   ],
   TokenPermissions: [
     { name: 'token', type: 'address' },
     { name: 'amount', type: 'uint256' },
-  ],
-  FlexWitness: [
-    { name: 'schemeId', type: 'bytes32' },
-    { name: 'intentHash', type: 'bytes32' },
-    { name: 'payer', type: 'address' },
-    { name: 'salt', type: 'bytes32' },
   ],
 };
 
@@ -350,9 +351,28 @@ export async function signWitness(
 }
 
 /**
+ * Compute witness struct hash for debugging purposes
+ * The actual hashing is done automatically by ethers.js when using nested types
+ */
+export function computeWitnessStructHash(witness: FlexWitness): string {
+  const structHash = ethers.TypedDataEncoder.hashStruct('FlexWitness', FLEX_WITNESS_TYPES, witness);
+
+  console.log('🔐 FlexWitness struct hash (for debug):');
+  console.log('   Witness:', JSON.stringify(witness, null, 2));
+  console.log('   Struct hash:', structHash);
+
+  return structHash;
+}
+
+/**
  * Sign Permit2 PermitWitnessTransferFrom
- * @param params - Permit parameters
- * @param witness - FlexWitness to include
+ *
+ * CRITICAL FIX: The router passes witness as bytes32 (EIP-712 digest of FlexWitness),
+ * NOT as a nested struct. We must:
+ * 1. Compute witnessDigest = hashTypedDataV4(routerDomain, FlexWitnessTypes, witness)
+ * 2. Sign Permit2 with witness: witnessDigest (bytes32)
+ *
+ * @param params - Permit parameters including FlexWitness
  * @param signer - ethers Signer (payer)
  */
 export async function signPermit2WithWitness(params: {
@@ -364,6 +384,16 @@ export async function signPermit2WithWitness(params: {
   witness: FlexWitness;
   signer: ethers.Signer;
 }): Promise<string> {
+  // Debug: compute struct hash for logging
+  const structHash = computeWitnessStructHash(params.witness);
+  console.log('🔐 FlexWitness struct hash:', structHash);
+
+  // Step 1: Compute witnessDigest using the ROUTER domain (not Permit2 domain)
+  // This is _hashTypedDataV4(hashFlexWitness(witness)) in the router
+  const witnessDigest = ethers.TypedDataEncoder.hash(ROUTER_DOMAIN, FLEX_WITNESS_TYPES, params.witness);
+  console.log('🔐 Witness Digest (router EIP-712 hash):', witnessDigest);
+
+  // Step 2: Build Permit2 message with witness as bytes32 (the witnessDigest)
   const message = {
     permitted: {
       token: params.token,
@@ -372,8 +402,20 @@ export async function signPermit2WithWitness(params: {
     spender: params.spender,
     nonce: params.nonce,
     deadline: params.deadline,
-    witness: params.witness,
+    witness: witnessDigest, // FIXED: Pass bytes32 witnessDigest, not FlexWitness struct
   };
+
+  console.log('🔐 Permit2 Signing Details:');
+  console.log('   Router Domain:', JSON.stringify(ROUTER_DOMAIN, null, 2));
+  console.log('   Message (with bytes32 witness):', JSON.stringify(message, null, 2));
+
+  // Log the EIP-712 type string that will be generated
+  const typeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
+  console.log('   EIP-712 Type String:', typeString);
+
+  console.log('🔧 BACKEND DEBUG - Values for Permit2.permitWitnessTransferFrom():');
+  console.log('   witness (bytes32 - router EIP-712 digest):', witnessDigest);
+  console.log('   FlexWitness struct hash:', structHash);
 
   return await params.signer.signTypedData(PERMIT2_DOMAIN, PERMIT2_WITNESS_TYPES, message);
 }
@@ -390,7 +432,7 @@ export async function signPermit2WithWitness(params: {
  * - data: approve(permit2Address, MaxUint256)
  * - value: 0
  */
-export function buildApprovalTxData(tokenAddress: string): string {
+export function buildApprovalTxData(_tokenAddress: string): string {
   const iface = new ethers.Interface(['function approve(address spender, uint256 amount)']);
   return iface.encodeFunctionData('approve', [
     BNB_TESTNET_CONFIG.contracts.permit2,
@@ -604,9 +646,6 @@ export function generateExamplePayload(): Permit2BundleRequest {
   // Generate placeholder signatures (65 bytes = 130 hex chars + 0x)
   const placeholderSig = '0x' + 'a'.repeat(128) + '1b'; // v=27
 
-  // Build example approval tx (Type 2 / EIP-1559)
-  const approvalData = buildApprovalTxData(tokenAddress);
-
   // This is a placeholder signed tx - real one would be from eth_signTransaction
   // Format: RLP encoded EIP-1559 transaction
   const exampleApprovalTx = '0x02f8b0610182753083030d4083030d409' +
@@ -741,6 +780,7 @@ export default {
   computeReferenceHash,
   computeIntentHashLocal,
   computeIntentHashOnChain,
+  computeWitnessStructHash,
   signWitness,
   signPermit2WithWitness,
   buildApprovalTxData,

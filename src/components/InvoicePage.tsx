@@ -15,7 +15,6 @@ import { createInvoiceReceipt, type PaymentReceipt as StoredReceipt } from '../l
 import { downloadReceiptPng } from '../lib/receipt-generator';
 import { getInvoice, getInvoiceStatus, subscribeToInvoiceSSE, confirmInvoicePayment, getTokenCapabilities, type Invoice as ApiInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { payInvoiceGasless, isPermit2Approved, supportsEIP2612, supportsEIP3009 } from '../lib/gasless-payments';
-import { useToast } from '../contexts/ToastContext';
 
 interface InvoicePageProps {
   invoiceId: string;
@@ -24,7 +23,6 @@ interface InvoicePageProps {
 type PaymentStatus = 'pending' | 'processing' | 'paid' | 'failed';
 
 export function InvoicePage({ invoiceId }: InvoicePageProps) {
-  const toast = useToast();
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);

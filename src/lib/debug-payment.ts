@@ -363,9 +363,66 @@ export async function checkBNBBalance() {
   return balance;
 }
 
+// FlexWitness EIP-712 types (standalone for router domain signing)
+const FLEX_WITNESS_TYPES = {
+  FlexWitness: [
+    { name: 'schemeId', type: 'bytes32' },
+    { name: 'intentHash', type: 'bytes32' },
+    { name: 'payer', type: 'address' },
+    { name: 'salt', type: 'bytes32' },
+  ],
+};
+
+// Permit2 EIP-712 types with NESTED FlexWitness
+// CRITICAL: Permit2 constructs the type string as:
+// "PermitWitnessTransferFrom(...)FlexWitness(...)TokenPermissions(...)"
+// Using witness: 'FlexWitness' (not bytes32) ensures correct type string
+const PERMIT2_WITNESS_TYPES = {
+  PermitWitnessTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' },
+    { name: 'spender', type: 'address' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+    { name: 'witness', type: 'FlexWitness' },  // Nested struct
+  ],
+  TokenPermissions: [
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+  ],
+  FlexWitness: [
+    { name: 'schemeId', type: 'bytes32' },
+    { name: 'intentHash', type: 'bytes32' },
+    { name: 'payer', type: 'address' },
+    { name: 'salt', type: 'bytes32' },
+  ],
+};
+
+/**
+ * Compute witness struct hash for debugging purposes
+ */
+function computeWitnessStructHash(
+  witness: {
+    schemeId: string;
+    intentHash: string;
+    payer: string;
+    salt: string;
+  }
+): string {
+  const structHash = ethers.TypedDataEncoder.hashStruct('FlexWitness', FLEX_WITNESS_TYPES, witness);
+
+  console.log('🔐 FlexWitness struct hash (for debug):');
+  console.log('   Witness:', JSON.stringify(witness, null, 2));
+  console.log('   Struct hash:', structHash);
+
+  return structHash;
+}
+
 /**
  * Verify a Permit2 signature locally to prove frontend is correct
  * This recovers the signer from the signature and compares to expected
+ *
+ * CRITICAL: Permit2 expects witness as a NESTED FlexWitness struct.
+ * The type string must include FlexWitness definition for correct type hash.
  */
 export async function verifyPermit2Signature(
   permit2Signature: string,
@@ -384,37 +441,34 @@ export async function verifyPermit2Signature(
   }
 ) {
   console.log('🔍 Verifying Permit2 signature locally...');
+  console.log('   Witness:', JSON.stringify(message.witness, null, 2));
 
-  // Domain (without version - canonical Permit2)
-  const domain = {
+  // Debug: compute struct hash for logging
+  const structHash = computeWitnessStructHash(message.witness);
+  console.log('   Struct hash:', structHash);
+
+  // Domain (without version - verified against contract)
+  const permit2Domain = {
     name: 'Permit2',
     chainId: 97,
     verifyingContract: PERMIT2_ADDRESS,
   };
 
-  // Types
-  const types = {
-    PermitWitnessTransferFrom: [
-      { name: 'permitted', type: 'TokenPermissions' },
-      { name: 'spender', type: 'address' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' },
-      { name: 'witness', type: 'FlexWitness' },
-    ],
-    TokenPermissions: [
-      { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    FlexWitness: [
-      { name: 'schemeId', type: 'bytes32' },
-      { name: 'intentHash', type: 'bytes32' },
-      { name: 'payer', type: 'address' },
-      { name: 'salt', type: 'bytes32' },
-    ],
+  // Build the message with NESTED FlexWitness
+  const permit2Message = {
+    permitted: message.permitted,
+    spender: message.spender,
+    nonce: message.nonce,
+    deadline: message.deadline,
+    witness: message.witness,  // Pass the actual struct - ethers.js hashes it
   };
 
+  // Log the EIP-712 type string that will be generated
+  const typeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
+  console.log('   EIP-712 Type String:', typeString);
+
   // Compute the EIP-712 hash
-  const typedDataHash = ethers.TypedDataEncoder.hash(domain, types, message);
+  const typedDataHash = ethers.TypedDataEncoder.hash(permit2Domain, PERMIT2_WITNESS_TYPES, permit2Message);
   console.log('   EIP-712 hash:', typedDataHash);
 
   // Recover the signer
@@ -432,7 +486,7 @@ export async function verifyPermit2Signature(
     console.log('   Expected:', expectedSigner);
   }
 
-  return { valid: matches, recoveredAddress, expectedSigner, typedDataHash };
+  return { valid: matches, recoveredAddress, expectedSigner, typedDataHash, structHash };
 }
 
 /**
@@ -440,24 +494,22 @@ export async function verifyPermit2Signature(
  * This must match what the backend passes to permitWitnessTransferFrom
  */
 export function getPermit2WitnessTypeInfo() {
-  // The witness type string that must be passed to Permit2's permitWitnessTransferFrom
+  // Get the type string that ethers.js generates with nested FlexWitness
+  const typeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
+
+  // The witness type string suffix that the backend passes to permitWitnessTransferFrom
+  // This is everything after the stub in the full type string
   const witnessTypeString = 'FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)';
 
-  // Permit2's stub (from the contract)
-  const permit2Stub = 'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,';
-
-  // Full type string for EIP-712
-  const fullTypeString = permit2Stub + witnessTypeString;
-
   // Type hash
-  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(fullTypeString));
+  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(typeString));
 
   console.log('🔍 Permit2 Witness Type Info:');
-  console.log('   Witness type string (to pass to contract):', witnessTypeString);
-  console.log('   Full EIP-712 type string:', fullTypeString);
+  console.log('   ethers.js generated type string:', typeString);
+  console.log('   Witness type string (backend passes to contract):', witnessTypeString);
   console.log('   Type hash:', typeHash);
 
-  return { witnessTypeString, fullTypeString, typeHash };
+  return { witnessTypeString, fullTypeString: typeString, typeHash };
 }
 
 /**
@@ -554,6 +606,169 @@ export async function verifyLastPermit2Sig() {
   return verifyPermit2Signature(lastSignature, expectedSigner, message);
 }
 
+/**
+ * Debug: Query router contract for its EIP-712 constants
+ * This helps diagnose witnessDigest mismatch issues
+ */
+export async function debugRouterConstants() {
+  if (!window.ethereum) {
+    console.error('❌ No wallet connected');
+    return;
+  }
+
+  const provider = new ethers.BrowserProvider(window.ethereum);
+
+  console.log('='.repeat(70));
+  console.log('🔧 ROUTER CONTRACT CONSTANTS DEBUG');
+  console.log('='.repeat(70));
+  console.log('Router address:', ROUTER_ADDRESS);
+
+  const routerContract = new ethers.Contract(
+    ROUTER_ADDRESS,
+    [
+      'function DOMAIN_SEPARATOR() external view returns (bytes32)',
+      'function FLEX_WITNESS_TYPEHASH() external view returns (bytes32)',
+      'function name() external view returns (string)',
+      'function version() external view returns (string)',
+    ],
+    provider
+  );
+
+  // Try to get DOMAIN_SEPARATOR
+  try {
+    const domainSep = await routerContract.DOMAIN_SEPARATOR();
+    console.log('\n🔐 Router DOMAIN_SEPARATOR (on-chain):', domainSep);
+
+    // Compute what we expect
+    const expectedDomainSep = ethers.TypedDataEncoder.hashDomain({
+      name: 'BNBPayRouter',
+      version: '1',
+      chainId: 97,
+      verifyingContract: ROUTER_ADDRESS,
+    });
+    console.log('   Our computed domain separator:', expectedDomainSep);
+    console.log('   Match:', domainSep === expectedDomainSep ? '✅ YES' : '❌ NO - MISMATCH!');
+
+    if (domainSep !== expectedDomainSep) {
+      console.log('\n⚠️  Domain separator mismatch! Possible causes:');
+      console.log('   - Router uses different name');
+      console.log('   - Router uses different version');
+      console.log('   - Router was deployed on different chain');
+    }
+  } catch (e: any) {
+    console.log('\n⚠️  Could not fetch DOMAIN_SEPARATOR:', e.message);
+    console.log('   Router may not expose this function publicly');
+  }
+
+  // Try to get FLEX_WITNESS_TYPEHASH
+  try {
+    const flexWitnessTypeHash = await routerContract.FLEX_WITNESS_TYPEHASH();
+    console.log('\n🔐 Router FLEX_WITNESS_TYPEHASH (on-chain):', flexWitnessTypeHash);
+
+    // Compute what we expect
+    const expectedTypeHash = ethers.keccak256(ethers.toUtf8Bytes(
+      'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)'
+    ));
+    console.log('   Our computed type hash:', expectedTypeHash);
+    console.log('   Match:', flexWitnessTypeHash === expectedTypeHash ? '✅ YES' : '❌ NO - MISMATCH!');
+
+    if (flexWitnessTypeHash !== expectedTypeHash) {
+      console.log('\n⚠️  Type hash mismatch! The router uses a different FlexWitness struct definition.');
+      console.log('   We need to find out what fields/order the router expects.');
+    }
+  } catch (e: any) {
+    console.log('\n⚠️  Could not fetch FLEX_WITNESS_TYPEHASH:', e.message);
+    console.log('   Router may not expose this constant publicly');
+  }
+
+  // Try to get name and version
+  try {
+    const name = await routerContract.name();
+    console.log('\n🔐 Router name():', name);
+  } catch (e: any) {
+    console.log('\n⚠️  Could not fetch name():', e.message);
+  }
+
+  try {
+    const version = await routerContract.version();
+    console.log('🔐 Router version():', version);
+  } catch (e: any) {
+    console.log('⚠️  Could not fetch version():', e.message);
+  }
+
+  console.log('\n' + '='.repeat(70));
+}
+
+/**
+ * Compute and log what we think the witnessDigest should be
+ */
+export async function computeWitnessDigest(witness: {
+  schemeId: string;
+  intentHash: string;
+  payer: string;
+  salt: string;
+}) {
+  console.log('='.repeat(70));
+  console.log('🔧 WITNESS DIGEST COMPUTATION');
+  console.log('='.repeat(70));
+
+  console.log('\nInput witness:', witness);
+
+  // Our FLEX_WITNESS_TYPEHASH
+  const FLEX_WITNESS_TYPEHASH = ethers.keccak256(ethers.toUtf8Bytes(
+    'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)'
+  ));
+  console.log('\nFLEX_WITNESS_TYPEHASH:', FLEX_WITNESS_TYPEHASH);
+
+  // Compute struct hash
+  const structHash = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ['bytes32', 'bytes32', 'bytes32', 'address', 'bytes32'],
+      [FLEX_WITNESS_TYPEHASH, witness.schemeId, witness.intentHash, witness.payer, witness.salt]
+    )
+  );
+  console.log('Struct hash:', structHash);
+
+  // Router domain
+  const routerDomain = {
+    name: 'BNBPayRouter',
+    version: '1',
+    chainId: 97,
+    verifyingContract: ROUTER_ADDRESS,
+  };
+
+  const domainSeparator = ethers.TypedDataEncoder.hashDomain(routerDomain);
+  console.log('Router domain separator:', domainSeparator);
+
+  // Compute witnessDigest
+  const witnessDigest = ethers.keccak256(
+    ethers.solidityPacked(
+      ['bytes2', 'bytes32', 'bytes32'],
+      ['0x1901', domainSeparator, structHash]
+    )
+  );
+  console.log('\n✅ Witness Digest:', witnessDigest);
+
+  // Also compute using ethers TypedDataEncoder
+  const witnessDigestEthers = ethers.TypedDataEncoder.hash(
+    routerDomain,
+    {
+      FlexWitness: [
+        { name: 'schemeId', type: 'bytes32' },
+        { name: 'intentHash', type: 'bytes32' },
+        { name: 'payer', type: 'address' },
+        { name: 'salt', type: 'bytes32' },
+      ],
+    },
+    witness
+  );
+  console.log('Witness Digest (ethers method):', witnessDigestEthers);
+  console.log('Methods match:', witnessDigest === witnessDigestEthers ? '✅ YES' : '❌ NO');
+
+  console.log('\n' + '='.repeat(70));
+  return witnessDigest;
+}
+
 // Export for browser console
 if (typeof window !== 'undefined') {
   (window as any).debugGaslessPayment = debugGaslessPayment;
@@ -566,6 +781,8 @@ if (typeof window !== 'undefined') {
   (window as any).getPermit2WitnessTypeInfo = getPermit2WitnessTypeInfo;
   (window as any).verifyPermit2Signature = verifyPermit2Signature;
   (window as any).verifyLastPermit2Sig = verifyLastPermit2Sig;
+  (window as any).debugRouterConstants = debugRouterConstants;
+  (window as any).computeWitnessDigest = computeWitnessDigest;
 
   console.log('🔧 Debug utilities loaded!');
   console.log('   Run: checkAllBalances() - ⭐ SEE ALL YOUR TOKEN BALANCES');
@@ -576,4 +793,6 @@ if (typeof window !== 'undefined') {
   console.log('   Run: decodeContractError("0xee7ad419")');
   console.log('   Run: debugPermit2DomainSeparator()');
   console.log('   Run: getPermit2WitnessTypeInfo()');
+  console.log('   Run: debugRouterConstants() - ⭐ CHECK ROUTER EIP-712 CONSTANTS');
+  console.log('   Run: computeWitnessDigest({schemeId, intentHash, payer, salt})');
 }
