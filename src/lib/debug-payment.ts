@@ -494,22 +494,23 @@ export async function verifyPermit2Signature(
  * This must match what the backend passes to permitWitnessTransferFrom
  */
 export function getPermit2WitnessTypeInfo() {
-  // Get the type string that ethers.js generates with nested FlexWitness
-  const typeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
+  // Ethers.js nested type string (not the same string Permit2 hashes)
+  const typedDataTypeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
 
-  // The witness type string suffix that the backend passes to permitWitnessTransferFrom
-  // This is everything after the stub in the full type string
-  const witnessTypeString = 'FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)';
+  // Permit2 hashes a stub + witnessTypeString (from the router)
+  const witnessTypeString = 'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)';
+  const permit2TypeHashStub = 'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,';
+  const typeStringForHash = `${permit2TypeHashStub}${witnessTypeString}`;
 
-  // Type hash
-  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(typeString));
+  const typeHash = ethers.keccak256(ethers.toUtf8Bytes(typeStringForHash));
 
   console.log('🔍 Permit2 Witness Type Info:');
-  console.log('   ethers.js generated type string:', typeString);
-  console.log('   Witness type string (backend passes to contract):', witnessTypeString);
+  console.log('   ethers.js generated type string:', typedDataTypeString);
+  console.log('   Witness type string (router passes to contract):', witnessTypeString);
+  console.log('   Type string used for hash:', typeStringForHash);
   console.log('   Type hash:', typeHash);
 
-  return { witnessTypeString, fullTypeString: typeString, typeHash };
+  return { witnessTypeString, fullTypeString: typedDataTypeString, typeHash, typeStringForHash };
 }
 
 /**

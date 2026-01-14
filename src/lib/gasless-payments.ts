@@ -17,6 +17,16 @@ import {
 } from './bnbpay-api';
 import { NETWORKS, type NetworkType } from './web3';
 
+const DEBUG_LOGS = typeof window !== 'undefined' && window.localStorage?.getItem('bnbpay_debug') === '1';
+const logDebug = (...args: unknown[]) => {
+  if (DEBUG_LOGS) {
+    console.log(...args);
+  }
+};
+const logInfo = (...args: unknown[]) => {
+  console.log(...args);
+};
+
 // Permit2 contract address - NOTE: This is the universal address but BNB Testnet uses a different one
 // The actual address should come from NETWORKS config
 export const PERMIT2_ADDRESS_UNIVERSAL = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
@@ -110,13 +120,13 @@ export async function debugPermit2Domain(
     matches = 'withVersion';
   }
 
-  console.log('🔍 Permit2 Domain Separator Debug:');
-  console.log('   Contract address:', permit2Address);
-  console.log('   Chain ID:', chainId);
-  console.log('   Actual from contract:', actual);
-  console.log('   Computed (no version):', withoutVersion);
-  console.log('   Computed (with version):', withVersion);
-  console.log('   Matches:', matches);
+  logDebug('🔍 Permit2 Domain Separator Debug:');
+  logDebug('   Contract address:', permit2Address);
+  logDebug('   Chain ID:', chainId);
+  logDebug('   Actual from contract:', actual);
+  logDebug('   Computed (no version):', withoutVersion);
+  logDebug('   Computed (with version):', withVersion);
+  logDebug('   Matches:', matches);
 
   return { actual, withoutVersion, withVersion, matches };
 }
@@ -149,38 +159,36 @@ const FLEX_WITNESS_TYPES = {
 // PERMIT2 TYPE HASHES - Must match exactly what Permit2 contract computes
 // =============================================================================
 
-// The router passes this witnessTypeString to Permit2:
-// "FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)"
+// Permit2 computes the type hash as keccak256(stub + witnessTypeString):
+// stub = "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,"
+// witnessTypeString = "FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)" (from router)
 //
-// Permit2 constructs the FULL type string by prepending its stub:
-// "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)"
-//
-// CRITICAL: Permit2 uses the FlexWitness TYPE STRING but encodes the witness as raw bytes32!
-// This is non-standard EIP-712 behavior that ethers.js signTypedData cannot handle.
-// We must manually compute the hash.
+// CRITICAL: This is non-standard EIP-712; the hashed type string omits TokenPermissions and bytes32 witness.
+// We must compute the hash manually to match Permit2.
 
+const FLEX_WITNESS_TYPESTRING =
+  'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)';
 const FLEX_WITNESS_TYPEHASH = ethers.keccak256(ethers.toUtf8Bytes(
-  'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)'
+  FLEX_WITNESS_TYPESTRING
 ));
 
 const TOKEN_PERMISSIONS_TYPEHASH = ethers.keccak256(ethers.toUtf8Bytes(
   'TokenPermissions(address token,uint256 amount)'
 ));
 
-// This MUST match what Permit2 computes
-// CRITICAL: Permit2 expects "bytes32 witness" NOT "FlexWitness witness"
-// The FlexWitness type definition is appended separately but the field type is bytes32
-// Correct type hash: 0xf258281914ea0c81436e968596df9b9d8ad0d63c784c7fb7d3fd7fd073d70cdf
-const FULL_PERMIT2_TYPE_STRING = 'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,bytes32 witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)';
+// Permit2 type hash uses a stub + witnessTypeString (NOT a full EIP-712 type string).
+const PERMIT_WITNESS_TYPEHASH_STUB =
+  'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,';
+const PERMIT2_TYPE_STRING_WITH_WITNESS = `${PERMIT_WITNESS_TYPEHASH_STUB}${FLEX_WITNESS_TYPESTRING}`;
+const FULL_PERMIT2_TYPE_STRING_LEGACY =
+  'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,bytes32 witness)TokenPermissions(address token,uint256 amount)';
 
-const PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH = ethers.keccak256(ethers.toUtf8Bytes(FULL_PERMIT2_TYPE_STRING));
-
-// Log these at module load for debugging
-console.log('🔐 Permit2 Type String Constants:');
-console.log('   Full type string:', FULL_PERMIT2_TYPE_STRING);
-console.log('   Type hash:', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH);
-console.log('   Expected type hash: 0xf258281914ea0c81436e968596df9b9d8ad0d63c784c7fb7d3fd7fd073d70cdf');
-console.log('   Type hash matches:', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH === '0xf258281914ea0c81436e968596df9b9d8ad0d63c784c7fb7d3fd7fd073d70cdf' ? '✅ YES' : '❌ NO');
+const PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_WITH_WITNESS = ethers.keccak256(
+  ethers.toUtf8Bytes(PERMIT2_TYPE_STRING_WITH_WITNESS)
+);
+const PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_LEGACY = ethers.keccak256(
+  ethers.toUtf8Bytes(FULL_PERMIT2_TYPE_STRING_LEGACY)
+);
 
 // EIP-2612 EIP-712 types (for tokens that support it)
 const EIP2612_TYPES = {
@@ -231,23 +239,68 @@ export async function getPermit2Nonce(
   provider: ethers.Provider,
   network: NetworkType = 'testnet'
 ): Promise<string> {
+  const permit2Address = getPermit2Address(network);
+  const permit2 = new ethers.Contract(
+    permit2Address,
+    ['function nonceBitmap(address owner, uint256 word) external view returns (uint256)'],
+    provider
+  );
+
+  const maxWordsToScan = 4; // 4 * 256 = 1024 nonces before we extend the scan
   try {
-    const permit2Address = getPermit2Address(network);
-    const permit2 = new ethers.Contract(
-      permit2Address,
-      ['function nonces(address owner) external view returns (uint256)'],
-      provider
-    );
-    const nonce = await permit2.nonces(owner);
-    return nonce.toString();
+    for (let word = 0; word < maxWordsToScan; word += 1) {
+      const bitmap: bigint = await permit2.nonceBitmap(owner, word);
+      if (bitmap !== ethers.MaxUint256) {
+        for (let bit = 0; bit < 256; bit += 1) {
+          const mask = 1n << BigInt(bit);
+          if ((bitmap & mask) === 0n) {
+            const nonce = (BigInt(word) << 8n) | BigInt(bit);
+            return nonce.toString();
+          }
+        }
+      }
+    }
   } catch (error) {
-    console.error('Failed to get Permit2 nonce (contract may not be deployed on this network):', error);
-    // Permit2 uses a deterministic nonce based on the token and amount
-    // For the first use, nonce is typically 0, but we'll use a random value
-    // The nonce is part of the Permit2 signature and prevents replays
-    const randomNonce = ethers.toBigInt(ethers.randomBytes(32));
-    console.log('Using random nonce:', randomNonce.toString());
-    return randomNonce.toString();
+    console.error('Failed to read Permit2 nonce bitmap:', error);
+    throw new Error('Permit2 nonce bitmap query failed; check Permit2 address and RPC');
+  }
+
+  throw new Error('Permit2 nonce bitmap exhausted; increase scan range');
+}
+
+async function permit2SupportsWitnessTypeString(
+  provider: ethers.Provider,
+  permit2Address: string
+): Promise<boolean> {
+  const code = await provider.getCode(permit2Address);
+  if (!code || code === '0x') {
+    throw new Error('Permit2 contract code not found');
+  }
+  // selector for permitWitnessTransferFrom with witnessTypeString
+  const selector = '137c29fe';
+  if (!code.toLowerCase().includes(selector)) {
+    return false;
+  }
+
+  // Probe the function with a safe eth_call; non-empty revert data indicates support.
+  const iface = new ethers.Interface([
+    'function permitWitnessTransferFrom(((address token,uint256 amount) permitted,uint256 nonce,uint256 deadline),(address to,uint256 requestedAmount),address owner,bytes32 witness,string witnessTypeString,bytes signature)',
+  ]);
+  const data = iface.encodeFunctionData('permitWitnessTransferFrom', [
+    { permitted: { token: ethers.ZeroAddress, amount: 0n }, nonce: 0n, deadline: 0n },
+    { to: ethers.ZeroAddress, requestedAmount: 0n },
+    ethers.ZeroAddress,
+    ethers.ZeroHash,
+    FLEX_WITNESS_TYPESTRING,
+    '0x',
+  ]);
+
+  try {
+    await provider.call({ to: permit2Address, data });
+    return true;
+  } catch (err: any) {
+    const revertData = err?.data ?? err?.info?.error?.data ?? err?.error?.data;
+    return Boolean(revertData && revertData !== '0x');
   }
 }
 
@@ -319,9 +372,9 @@ export function computeWitnessStructHash(
   // This is what ethers.js computes internally when using nested types
   const structHash = ethers.TypedDataEncoder.hashStruct('FlexWitness', FLEX_WITNESS_TYPES, witness);
 
-  console.log('🔐 Witness Struct Hash (for debug):');
-  console.log('   Witness:', JSON.stringify(witness, null, 2));
-  console.log('   Struct hash:', structHash);
+  logDebug('🔐 Witness Struct Hash (for debug):');
+  logDebug('   Witness:', JSON.stringify(witness, null, 2));
+  logDebug('   Struct hash:', structHash);
 
   return structHash;
 }
@@ -366,11 +419,11 @@ export async function signPermit2WithWitness(params: {
   // ==========================================================================
   // DEBUG: Print raw witness values
   // ==========================================================================
-  console.log('🔐 Raw Witness Values:');
-  console.log('   schemeId:', params.witness.schemeId);
-  console.log('   intentHash:', params.witness.intentHash);
-  console.log('   payer:', params.witness.payer);
-  console.log('   salt:', params.witness.salt);
+  logDebug('🔐 Raw Witness Values:');
+  logDebug('   schemeId:', params.witness.schemeId);
+  logDebug('   intentHash:', params.witness.intentHash);
+  logDebug('   payer:', params.witness.payer);
+  logDebug('   salt:', params.witness.salt);
 
   // Ensure bytes32 values are properly padded
   const schemeId = ethers.zeroPadValue(params.witness.schemeId, 32);
@@ -378,11 +431,11 @@ export async function signPermit2WithWitness(params: {
   const salt = ethers.zeroPadValue(params.witness.salt, 32);
   const payer = ethers.getAddress(params.witness.payer); // Normalize address
 
-  console.log('🔐 Normalized Witness Values:');
-  console.log('   schemeId:', schemeId);
-  console.log('   intentHash:', intentHash);
-  console.log('   payer:', payer);
-  console.log('   salt:', salt);
+  logDebug('🔐 Normalized Witness Values:');
+  logDebug('   schemeId:', schemeId);
+  logDebug('   intentHash:', intentHash);
+  logDebug('   payer:', payer);
+  logDebug('   salt:', salt);
 
   // Create normalized witness object
   const normalizedWitness = { schemeId, intentHash, payer, salt };
@@ -403,21 +456,21 @@ export async function signPermit2WithWitness(params: {
     )
   );
 
-  console.log('🔐 FlexWitness Struct Hash Comparison:');
-  console.log('   ethers hashStruct:', witnessStructHashEthers);
-  console.log('   manual ABI encode:', witnessStructHashManual);
-  console.log('   Match:', witnessStructHashEthers === witnessStructHashManual ? '✅ YES' : '❌ NO');
+  logDebug('🔐 FlexWitness Struct Hash Comparison:');
+  logDebug('   ethers hashStruct:', witnessStructHashEthers);
+  logDebug('   manual ABI encode:', witnessStructHashManual);
+  logDebug('   Match:', witnessStructHashEthers === witnessStructHashManual ? '✅ YES' : '❌ NO');
 
   // If they don't match, log detailed encoding
   if (witnessStructHashEthers !== witnessStructHashManual) {
-    console.log('🔍 DEBUG: Struct hash mismatch - checking type hash...');
+    logDebug('🔍 DEBUG: Struct hash mismatch - checking type hash...');
     // Get ethers internal type hash for comparison
     const encoder = ethers.TypedDataEncoder.from(FLEX_WITNESS_TYPES);
     // Log the encoded types
-    console.log('   ethers encodeType:', encoder.encodeType('FlexWitness'));
+    logDebug('   ethers encodeType:', encoder.encodeType('FlexWitness'));
   }
 
-  console.log('   our FLEX_WITNESS_TYPEHASH:', FLEX_WITNESS_TYPEHASH);
+  logDebug('   our FLEX_WITNESS_TYPEHASH:', FLEX_WITNESS_TYPEHASH);
 
   // Use whichever is correct (prefer ethers as it's the standard)
   const witnessStructHash = witnessStructHashEthers;
@@ -433,12 +486,12 @@ export async function signPermit2WithWitness(params: {
   const routerDomainChainId = params.routerDomain?.chainId || params.chainId;
   const routerDomainContract = params.routerDomain?.verifyingContract || params.routerAddress;
 
-  console.log('🔐 Router Domain Configuration:');
-  console.log('   Source:', params.routerDomain ? '✅ FROM API' : '⚠️ HARDCODED DEFAULTS');
-  console.log('   name:', routerDomainName);
-  console.log('   version:', routerDomainVersion);
-  console.log('   chainId:', routerDomainChainId);
-  console.log('   verifyingContract:', routerDomainContract);
+  logDebug('🔐 Router Domain Configuration:');
+  logDebug('   Source:', params.routerDomain ? '✅ FROM API' : '⚠️ HARDCODED DEFAULTS');
+  logDebug('   name:', routerDomainName);
+  logDebug('   version:', routerDomainVersion);
+  logDebug('   chainId:', routerDomainChainId);
+  logDebug('   verifyingContract:', routerDomainContract);
 
   // Method A: Using ethers TypedDataEncoder
   const routerDomainForSep = {
@@ -463,9 +516,9 @@ export async function signPermit2WithWitness(params: {
     )
   );
 
-  console.log('🔐 Router domain separator (ethers):', routerDomainSeparatorEthers);
-  console.log('🔐 Router domain separator (manual):', routerDomainSeparator);
-  console.log('🔐 Router domain separators match:', routerDomainSeparatorEthers === routerDomainSeparator ? '✅ YES' : '❌ NO');
+  logDebug('🔐 Router domain separator (ethers):', routerDomainSeparatorEthers);
+  logDebug('🔐 Router domain separator (manual):', routerDomainSeparator);
+  logDebug('🔐 Router domain separators match:', routerDomainSeparatorEthers === routerDomainSeparator ? '✅ YES' : '❌ NO');
 
   // ==========================================================================
   // CRITICAL: Query router contract for its actual domain separator and type hash
@@ -484,23 +537,16 @@ export async function signPermit2WithWitness(params: {
 
       try {
         const onChainRouterDomainSep = await routerContract.DOMAIN_SEPARATOR();
-        console.log('🔐 Router DOMAIN_SEPARATOR (on-chain):', onChainRouterDomainSep);
-        console.log('🔐 Router domain separator matches on-chain:', onChainRouterDomainSep === routerDomainSeparatorEthers ? '✅ YES' : '❌ NO - THIS IS THE PROBLEM!');
+        logDebug('🔐 Router DOMAIN_SEPARATOR (on-chain):', onChainRouterDomainSep);
+        logDebug('🔐 Router domain separator matches on-chain:', onChainRouterDomainSep === routerDomainSeparatorEthers ? '✅ YES' : '❌ NO - THIS IS THE PROBLEM!');
       } catch (e: any) {
-        console.warn('   Could not fetch router DOMAIN_SEPARATOR:', e.message);
+        logDebug('   Could not fetch router DOMAIN_SEPARATOR:', e.message);
       }
 
-      try {
-        const onChainFlexWitnessTypeHash = await routerContract.FLEX_WITNESS_TYPEHASH();
-        console.log('🔐 Router FLEX_WITNESS_TYPEHASH (on-chain):', onChainFlexWitnessTypeHash);
-        console.log('🔐 Our FLEX_WITNESS_TYPEHASH:', FLEX_WITNESS_TYPEHASH);
-        console.log('🔐 FLEX_WITNESS_TYPEHASH matches:', onChainFlexWitnessTypeHash === FLEX_WITNESS_TYPEHASH ? '✅ YES' : '❌ NO - THIS IS THE PROBLEM!');
-      } catch (e: any) {
-        console.warn('   Could not fetch router FLEX_WITNESS_TYPEHASH:', e.message);
-      }
+      logDebug('🔐 Router FLEX_WITNESS_TYPEHASH is not public; skipping on-chain check.');
     }
   } catch (e: any) {
-    console.warn('   Could not query router contract:', e.message);
+    logDebug('   Could not query router contract:', e.message);
   }
 
   // ==========================================================================
@@ -529,12 +575,12 @@ export async function signPermit2WithWitness(params: {
     )
   );
 
-  console.log('🔐 Witness Digest Comparison:');
-  console.log('   ethers TypedDataEncoder.hash:', witnessDigestEthers);
-  console.log('   manual with ethers hashes:', witnessDigestManualWithEthers);
-  console.log('   fully manual:', witnessDigestManual);
-  console.log('   ethers vs manualWithEthers:', witnessDigestEthers === witnessDigestManualWithEthers ? '✅ YES' : '❌ NO');
-  console.log('   ethers vs fullyManual:', witnessDigestEthers === witnessDigestManual ? '✅ YES' : '❌ NO');
+  logDebug('🔐 Witness Digest Comparison:');
+  logDebug('   ethers TypedDataEncoder.hash:', witnessDigestEthers);
+  logDebug('   manual with ethers hashes:', witnessDigestManualWithEthers);
+  logDebug('   fully manual:', witnessDigestManual);
+  logDebug('   ethers vs manualWithEthers:', witnessDigestEthers === witnessDigestManualWithEthers ? '✅ YES' : '❌ NO');
+  logDebug('   ethers vs fullyManual:', witnessDigestEthers === witnessDigestManual ? '✅ YES' : '❌ NO');
 
   // Use ethers method as it's the standard
   const witnessDigest = witnessDigestEthers;
@@ -545,9 +591,9 @@ export async function signPermit2WithWitness(params: {
   const permit2DomainSeparator = computePermit2DomainSeparator(params.chainId, params.permit2Address);
   const permit2DomainSeparatorWithVersion = computePermit2DomainSeparatorWithVersion(params.chainId, params.permit2Address);
 
-  console.log('🔐 Permit2 Domain Separator:');
-  console.log('   computed (no version):', permit2DomainSeparator);
-  console.log('   computed (with version):', permit2DomainSeparatorWithVersion);
+  logDebug('🔐 Permit2 Domain Separator:');
+  logDebug('   computed (no version):', permit2DomainSeparator);
+  logDebug('   computed (with version):', permit2DomainSeparatorWithVersion);
 
   // Try to get the actual domain separator from the contract for verification
   try {
@@ -559,9 +605,9 @@ export async function signPermit2WithWitness(params: {
         provider
       );
       const onChainDomainSep = await permit2.DOMAIN_SEPARATOR();
-      console.log('   on-chain:', onChainDomainSep);
-      console.log('   matches (no version):', onChainDomainSep === permit2DomainSeparator ? '✅ YES' : '❌ NO');
-      console.log('   matches (with version):', onChainDomainSep === permit2DomainSeparatorWithVersion ? '✅ YES' : '❌ NO');
+      logDebug('   on-chain:', onChainDomainSep);
+      logDebug('   matches (no version):', onChainDomainSep === permit2DomainSeparator ? '✅ YES' : '❌ NO');
+      logDebug('   matches (with version):', onChainDomainSep === permit2DomainSeparatorWithVersion ? '✅ YES' : '❌ NO');
 
       // If neither matches, this is a critical error
       if (onChainDomainSep !== permit2DomainSeparator && onChainDomainSep !== permit2DomainSeparatorWithVersion) {
@@ -581,31 +627,55 @@ export async function signPermit2WithWitness(params: {
       [TOKEN_PERMISSIONS_TYPEHASH, params.tokenAddress, params.amount]
     )
   );
-  console.log('🔐 TokenPermissions hash:', tokenPermissionsHash);
+  logDebug('🔐 TokenPermissions hash:', tokenPermissionsHash);
 
   // ==========================================================================
   // STEP 6: Compute PermitWitnessTransferFrom struct hash
-  // CRITICAL: Uses PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH which includes FlexWitness
-  // but witness is encoded as raw bytes32 (witnessDigest)
+  // CRITICAL: Uses the full type hash (with or without witnessTypeString support)
+  // and encodes witness as raw bytes32 (witnessDigest)
   // ==========================================================================
-  console.log('🔐 Message Struct Hash Encoding:');
-  console.log('   PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH:', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH);
-  console.log('   tokenPermissionsHash:', tokenPermissionsHash);
-  console.log('   spender:', params.spender);
-  console.log('   nonce:', params.nonce, '(type:', typeof params.nonce, ')');
-  console.log('   deadline:', params.deadline, '(type:', typeof params.deadline, ')');
-  console.log('   witnessDigest:', witnessDigest);
+  const provider = params.signer.provider;
+  if (!provider) {
+    throw new Error('Permit2 signing requires a provider');
+  }
+
+  let supportsWitnessTypeString = false;
+  try {
+    supportsWitnessTypeString = await permit2SupportsWitnessTypeString(provider, params.permit2Address);
+  } catch (e: any) {
+    console.warn('Could not detect Permit2 witnessTypeString support:', e?.message ?? e);
+  }
+
+  const permit2TypeString = supportsWitnessTypeString
+    ? PERMIT2_TYPE_STRING_WITH_WITNESS
+    : FULL_PERMIT2_TYPE_STRING_LEGACY;
+  const permit2TypeHash = supportsWitnessTypeString
+    ? PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_WITH_WITNESS
+    : PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_LEGACY;
+
+  logInfo(
+    `Permit2 type: ${supportsWitnessTypeString ? 'modern' : 'legacy'} | typeHash: ${permit2TypeHash}`
+  );
+  logDebug('🔐 Message Struct Hash Encoding:');
+  logDebug('   Permit2 supports witnessTypeString:', supportsWitnessTypeString ? '✅ YES' : '❌ NO');
+  logDebug('   Full type string:', permit2TypeString);
+  logDebug('   PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH:', permit2TypeHash);
+  logDebug('   tokenPermissionsHash:', tokenPermissionsHash);
+  logDebug('   spender:', params.spender);
+  logDebug('   nonce:', params.nonce, '(type:', typeof params.nonce, ')');
+  logDebug('   deadline:', params.deadline, '(type:', typeof params.deadline, ')');
+  logDebug('   witnessDigest:', witnessDigest);
 
   // Debug: Show exact values being encoded
   const encodedValues = [
-    PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH,
+    permit2TypeHash,
     tokenPermissionsHash,
     params.spender,
     params.nonce,
     params.deadline,
     witnessDigest,
   ];
-  console.log('   Values array:', encodedValues);
+  logDebug('   Values array:', encodedValues);
 
   const messageStructHash = ethers.keccak256(
     ethers.AbiCoder.defaultAbiCoder().encode(
@@ -613,7 +683,7 @@ export async function signPermit2WithWitness(params: {
       encodedValues
     )
   );
-  console.log('🔐 Message struct hash:', messageStructHash);
+  logDebug('🔐 Message struct hash:', messageStructHash);
 
   // ==========================================================================
   // STEP 7: Compute final EIP-712 digest (what we need to sign)
@@ -632,9 +702,9 @@ export async function signPermit2WithWitness(params: {
     )
   );
 
-  console.log('🔐 Final EIP-712 Digest:');
-  console.log('   using domain (no version):', digestNoVersion);
-  console.log('   using domain (with version):', digestWithVersion);
+  logDebug('🔐 Final EIP-712 Digest:');
+  logDebug('   using domain (no version):', digestNoVersion);
+  logDebug('   using domain (with version):', digestWithVersion);
 
   // Determine which domain separator is correct based on on-chain verification
   let digest = digestNoVersion; // Default
@@ -651,11 +721,11 @@ export async function signPermit2WithWitness(params: {
       const onChainDomainSep = await permit2.DOMAIN_SEPARATOR();
 
       if (onChainDomainSep === permit2DomainSeparatorWithVersion) {
-        console.log('   ✅ Using versioned domain separator (matches on-chain)');
+        logDebug('   ✅ Using versioned domain separator (matches on-chain)');
         digest = digestWithVersion;
         useVersionedDomain = true;
       } else if (onChainDomainSep === permit2DomainSeparator) {
-        console.log('   ✅ Using non-versioned domain separator (matches on-chain)');
+        logDebug('   ✅ Using non-versioned domain separator (matches on-chain)');
         digest = digestNoVersion;
       } else {
         console.error('   ❌ WARNING: Neither domain separator matches on-chain! Using default (no version)');
@@ -665,105 +735,51 @@ export async function signPermit2WithWitness(params: {
     console.warn('   Could not verify domain separator, using default (no version):', e.message);
   }
 
-  console.log('   Final digest to sign:', digest);
+  logDebug('   Final digest to sign:', digest);
 
   // ==========================================================================
-  // STEP 8: Sign using signTypedData (preferred) or eth_sign (fallback)
+  // STEP 8: Sign Permit2 digest using eth_sign (raw EIP-712 digest)
   // ==========================================================================
-  console.log('🔐 Permit2 Signing Details:');
-  console.log('   Signer address:', signerAddress);
-  console.log('   Token:', params.tokenAddress);
-  console.log('   Amount:', params.amount.toString());
-  console.log('   Spender:', params.spender);
-  console.log('   Nonce:', params.nonce);
-  console.log('   Deadline:', params.deadline);
-  console.log('   Witness digest:', witnessDigest);
-  console.log('   Type hash (PERMIT_WITNESS_TRANSFER_FROM):', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH);
+  logDebug('🔐 Permit2 Signing Details:');
+  logDebug('   Signer address:', signerAddress);
+  logDebug('   Token:', params.tokenAddress);
+  logDebug('   Amount:', params.amount.toString());
+  logDebug('   Spender:', params.spender);
+  logDebug('   Nonce:', params.nonce);
+  logDebug('   Deadline:', params.deadline);
+  logDebug('   Witness digest:', witnessDigest);
+  logDebug('   Type hash (PERMIT_WITNESS_TRANSFER_FROM):', permit2TypeHash);
 
   let signature: string;
 
-  // Per senior dev: use signTypedData with witness: bytes32
-  // The Permit2 domain may or may not have version depending on deployment
-  const permit2Domain = useVersionedDomain
-    ? {
-        name: PERMIT2_DOMAIN_NAME,
-        version: '1',
-        chainId: params.chainId,
-        verifyingContract: params.permit2Address,
-      }
-    : {
-        name: PERMIT2_DOMAIN_NAME,
-        chainId: params.chainId,
-        verifyingContract: params.permit2Address,
-      };
-
-  console.log('🔐 Using Permit2 domain:', permit2Domain);
-
-  // Types for signTypedData - use NESTED FlexWitness struct
-  // ethers will hash the nested struct internally, which is what Permit2 expects
-  const permit2Types = {
-    PermitWitnessTransferFrom: [
-      { name: 'permitted', type: 'TokenPermissions' },
-      { name: 'spender', type: 'address' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' },
-      { name: 'witness', type: 'FlexWitness' },
-    ],
-    TokenPermissions: [
-      { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    FlexWitness: [
-      { name: 'schemeId', type: 'bytes32' },
-      { name: 'intentHash', type: 'bytes32' },
-      { name: 'payer', type: 'address' },
-      { name: 'salt', type: 'bytes32' },
-    ],
-  };
-
-  const permit2Message = {
-    permitted: {
-      token: params.tokenAddress,
-      amount: params.amount.toString(),
-    },
-    spender: params.spender,
-    nonce: params.nonce,
-    deadline: params.deadline,
-    witness: normalizedWitness, // Pass the actual struct, not the digest
-  };
-
-  console.log('📝 Signing with signTypedData (nested FlexWitness)...');
-  console.log('   Domain:', JSON.stringify(permit2Domain));
-  console.log('   Types:', JSON.stringify(permit2Types));
-  console.log('   Message:', JSON.stringify(permit2Message));
-
-  // Log the type string ethers will generate
-  const ethersTypeString = ethers.TypedDataEncoder.from(permit2Types).encodeType('PermitWitnessTransferFrom');
-  console.log('   ethers type string:', ethersTypeString);
-  const ethersTypeHash = ethers.keccak256(ethers.toUtf8Bytes(ethersTypeString));
-  console.log('   ethers type hash:', ethersTypeHash);
+  if (typeof (provider as any).send !== 'function') {
+    throw new Error('Permit2 signing requires a provider that supports eth_sign');
+  }
 
   try {
-    signature = await params.signer.signTypedData(permit2Domain, permit2Types, permit2Message);
-    console.log('   Signature:', signature);
-
-    // Verify the signature locally
-    const ethersDigest = ethers.TypedDataEncoder.hash(permit2Domain, permit2Types, permit2Message);
-    console.log('   ethers computed digest:', ethersDigest);
-
-    // Recover signer
-    const recoveredAddress = ethers.recoverAddress(ethersDigest, signature);
-    console.log('🔍 LOCAL SIGNATURE VERIFICATION:');
-    console.log('   Recovered signer:', recoveredAddress);
-    console.log('   Expected signer:', signerAddress);
-    if (recoveredAddress.toLowerCase() === signerAddress.toLowerCase()) {
-      console.log('   ✅ SIGNATURE VALID locally');
-    } else {
-      console.error('   ❌ SIGNATURE MISMATCH locally');
-    }
+    signature = await (provider as any).send('eth_sign', [signerAddress, digest]);
   } catch (signError: any) {
-    console.error('signTypedData failed:', signError.message);
-    throw new Error(`Cannot sign Permit2: ${signError.message}`);
+    console.error('eth_sign failed:', signError?.message ?? signError);
+    throw new Error(`Cannot sign Permit2 digest: ${signError?.message ?? 'eth_sign failed'}`);
+  }
+
+  // Normalize v to 27/28 for on-chain ECDSA compatibility.
+  const normalizedSignature = ethers.Signature.from(signature).serialized;
+  if (normalizedSignature !== signature) {
+    logDebug('Normalized Permit2 signature v-value');
+    signature = normalizedSignature;
+  }
+
+  // Verify the signature locally
+  const recoveredAddress = ethers.recoverAddress(digest, signature);
+  logDebug('🔍 LOCAL SIGNATURE VERIFICATION:');
+  logDebug('   Recovered signer:', recoveredAddress);
+  logDebug('   Expected signer:', signerAddress);
+  if (recoveredAddress.toLowerCase() === signerAddress.toLowerCase()) {
+    logDebug('   ✅ SIGNATURE VALID locally');
+  } else {
+    console.error('   ❌ SIGNATURE MISMATCH locally');
+    throw new Error('Permit2 signature does not match signer');
   }
 
   return signature;
@@ -823,14 +839,14 @@ export async function supportsEIP3009(tokenAddress: string, provider: ethers.Pro
     const hasTransferWithAuth = code.toLowerCase().includes(selector);
 
     if (hasTransferWithAuth) {
-      console.log(`Token ${tokenAddress} supports EIP-3009 (transferWithAuthorization found in bytecode)`);
+      logDebug(`Token ${tokenAddress} supports EIP-3009 (transferWithAuthorization found in bytecode)`);
     } else {
-      console.log(`Token ${tokenAddress} does not support EIP-3009 (no transferWithAuthorization)`);
+      logDebug(`Token ${tokenAddress} does not support EIP-3009 (no transferWithAuthorization)`);
     }
 
     return hasTransferWithAuth;
   } catch (error) {
-    console.log(`Token ${tokenAddress} EIP-3009 check failed:`, error);
+    logDebug(`Token ${tokenAddress} EIP-3009 check failed:`, error);
     return false;
   }
 }
@@ -898,7 +914,7 @@ export async function signEIP3009(params: {
     nonce: params.nonce,
   };
 
-  console.log('Signing EIP-3009 TransferWithAuthorization:', message);
+  logDebug('Signing EIP-3009 TransferWithAuthorization:', message);
 
   const signature = await params.signer.signTypedData(domain, EIP3009_TYPES, message);
 
@@ -972,8 +988,8 @@ export async function payInvoiceGasless(params: {
     // Don't pass sessionId - it's for session-based payments only
   };
 
-  console.log('Building gasless payment intent...');
-  console.log('Build request:', {
+  logDebug('Building gasless payment intent...');
+  logDebug('Build request:', {
     mode: buildRequest.mode,
     network: buildRequest.network,
     merchant: buildRequest.merchant,
@@ -995,26 +1011,35 @@ export async function payInvoiceGasless(params: {
     throw new Error(`Failed to build payment intent: ${error.message}`);
   }
 
-  console.log('Payment intent built successfully');
-  console.log('Full response:', intentResponse);
-  console.log('Payment ID:', intentResponse.derived.paymentId);
-  console.log('Resource ID:', intentResponse.derived.resourceId);
-  console.log('Input payer:', intentResponse.input.payer);
-  console.log('Derived intent payer:', intentResponse.derived.intent.payer);
-  console.log('Intent object:', intentResponse.derived.intent);
+  logDebug('Payment intent built successfully');
+  logDebug('Full response:', intentResponse);
+  logDebug('Payment ID:', intentResponse.derived.paymentId);
+  logDebug('Resource ID:', intentResponse.derived.resourceId);
+  logDebug('Input payer:', intentResponse.input.payer);
+  logDebug('Derived intent payer:', intentResponse.derived.intent.payer);
+  logDebug('Intent object:', intentResponse.derived.intent);
 
   // Log signing hints - the API may provide pre-computed values we should use
-  console.log('\n🔐 API Signing Hints:');
-  console.log('   signing object:', intentResponse.signing);
-  console.log('   hints object:', intentResponse.hints);
+  logDebug('\n🔐 API Signing Hints:');
+  logDebug('   signing object:', intentResponse.signing);
+  logDebug('   hints object:', intentResponse.hints);
   if (intentResponse.signing) {
-    console.log('   signing.witnessDigest:', (intentResponse.signing as any).witnessDigest);
-    console.log('   signing.domainSeparator:', (intentResponse.signing as any).domainSeparator);
-    console.log('   signing.schemeId:', (intentResponse.signing as any).schemeId);
+    logDebug('   signing.witnessDigest:', (intentResponse.signing as any).witnessDigest);
+    logDebug('   signing.domainSeparator:', (intentResponse.signing as any).domainSeparator);
+    logDebug('   signing.schemeId:', (intentResponse.signing as any).schemeId);
   }
   if (intentResponse.derived) {
-    console.log('   derived.intentHash:', intentResponse.derived.intentHash);
-    console.log('   derived.witness:', (intentResponse.derived as any).witness);
+    logDebug('   derived.intentHash:', intentResponse.derived.intentHash);
+    logDebug('   derived.witness:', (intentResponse.derived as any).witness);
+  }
+
+  const selectedScheme = (intentResponse.hints?.schemeSelected ??
+    intentResponse.input.scheme ??
+    intentResponse.input.schemeRequested ??
+    'permit2') as 'permit2' | 'eip2612' | 'eip3009' | 'aa_push';
+  logInfo('Selected scheme (API):', selectedScheme);
+  if (selectedScheme === 'aa_push') {
+    throw new Error('Gasless flow requires permit-based schemes (permit2/eip2612/eip3009)');
   }
 
   // Use the API's amount as the canonical source of truth
@@ -1039,11 +1064,11 @@ export async function payInvoiceGasless(params: {
   // ==========================================================================
   const apiRouterDomain = intentResponse.signing?.routerDomain;
   if (apiRouterDomain) {
-    console.log('🔐 Using router domain FROM API:');
-    console.log('   name:', apiRouterDomain.name);
-    console.log('   version:', apiRouterDomain.version);
-    console.log('   chainId:', apiRouterDomain.chainId);
-    console.log('   verifyingContract:', apiRouterDomain.verifyingContract);
+    logDebug('🔐 Using router domain FROM API:');
+    logDebug('   name:', apiRouterDomain.name);
+    logDebug('   version:', apiRouterDomain.version);
+    logDebug('   chainId:', apiRouterDomain.chainId);
+    logDebug('   verifyingContract:', apiRouterDomain.verifyingContract);
   } else {
     console.warn('⚠️  API did not return router domain - using defaults');
   }
@@ -1051,7 +1076,7 @@ export async function payInvoiceGasless(params: {
   // Build witness object from API response
   // The API doesn't return witness directly - we need to construct it
   // Witness = FlexWitness { schemeId, intentHash, payer, salt }
-  const schemeIdHash = ethers.keccak256(ethers.toUtf8Bytes(intentResponse.input.scheme)); // Hash of scheme name
+  const schemeIdHash = ethers.keccak256(ethers.toUtf8Bytes(selectedScheme)); // Hash of scheme name
 
   // Pad salt to 32 bytes if needed (API may return shorter salt)
   const saltPadded = ethers.zeroPadValue(intentResponse.input.salt, 32);
@@ -1074,22 +1099,28 @@ export async function payInvoiceGasless(params: {
     salt: saltPadded,
   };
 
-  console.log('Constructed witness:', normalizedWitness);
+  logDebug('Constructed witness:', normalizedWitness);
 
   // Set deadline (1 hour from now)
   const deadline = Math.floor(Date.now() / 1000) + 3600;
 
-  // Check token capabilities in order of preference: EIP-3009 > EIP-2612 > Permit2
+  // Check token capabilities for diagnostics (API already selected the scheme)
   const hasEIP3009 = await supportsEIP3009(params.tokenAddress, params.provider);
   const hasEIP2612 = await supportsEIP2612(params.tokenAddress, params.provider);
-  console.log(`Token ${params.paymentToken} supports EIP-3009:`, hasEIP3009);
-  console.log(`Token ${params.paymentToken} supports EIP-2612:`, hasEIP2612);
+  logDebug(`Token ${params.paymentToken} supports EIP-3009:`, hasEIP3009);
+  logDebug(`Token ${params.paymentToken} supports EIP-2612:`, hasEIP2612);
+  if (selectedScheme === 'eip3009' && !hasEIP3009) {
+    console.warn('⚠️ API selected eip3009 but token check failed locally.');
+  }
+  if (selectedScheme === 'eip2612' && !hasEIP2612) {
+    console.warn('⚠️ API selected eip2612 but token check failed locally.');
+  }
 
   let relayRequest: RelayPaymentRequest;
 
-  if (hasEIP3009) {
+  if (selectedScheme === 'eip3009') {
     // Use EIP-3009 TransferWithAuthorization (most efficient - direct transfer)
-    console.log('Using EIP-3009 TransferWithAuthorization for gasless payment...');
+    logInfo('Using EIP-3009 TransferWithAuthorization for gasless payment...');
 
     // EIP-3009 uses validAfter/validBefore instead of deadline
     const validAfter = 0; // Valid immediately
@@ -1156,9 +1187,9 @@ export async function payInvoiceGasless(params: {
         s: eip3009Sig.s,
       },
     };
-  } else if (hasEIP2612) {
+  } else if (selectedScheme === 'eip2612') {
     // Use EIP-2612 permit (native token permit)
-    console.log('Using EIP-2612 permit for gasless payment...');
+    logInfo('Using EIP-2612 permit for gasless payment...');
 
     const nonce = await getEIP2612Nonce(params.tokenAddress, payerAddress, params.provider);
 
@@ -1222,11 +1253,11 @@ export async function payInvoiceGasless(params: {
     };
   } else {
     // Use Permit2 (universal ERC20 permit)
-    console.log('Using Permit2 for gasless payment...');
+    logInfo('Using Permit2 for gasless payment...');
 
     // Get network-specific Permit2 address
     const permit2Address = getPermit2Address(params.network);
-    console.log('Using Permit2 address:', permit2Address);
+    logInfo('Using Permit2 address:', permit2Address);
 
     // DEBUG: Check which domain format the Permit2 contract uses
     try {
@@ -1245,11 +1276,9 @@ export async function payInvoiceGasless(params: {
       params.provider,
       params.network
     );
-    console.log('Permit2 already approved:', hasPermit2Approval);
+    logInfo('Permit2 already approved:', hasPermit2Approval);
 
-    // Use a simple incrementing nonce or random value
-    // Permit2 contract may not be deployed on BNB testnet at the universal address
-    const nonce = Date.now().toString(); // Use timestamp as nonce for testing
+    const nonce = await getPermit2Nonce(payerAddress, params.provider, params.network);
 
     // Sign Permit2 WITH witness - BNBPayRouter uses permitWitnessTransferFrom
     // CRITICAL: witness must be bytes32 (router EIP-712 digest of FlexWitness)
@@ -1276,7 +1305,7 @@ export async function payInvoiceGasless(params: {
       chainId: config.chainIdNumber,
       verifyingContract: config.contracts.bnbPayRouter,
     };
-    console.log('🔐 Witness signature domain:', witnessSignatureDomain);
+    logDebug('🔐 Witness signature domain:', witnessSignatureDomain);
 
     const witnessSignature = await params.signer.signTypedData(
       witnessSignatureDomain,
@@ -1323,7 +1352,7 @@ export async function payInvoiceGasless(params: {
 
     if (!hasPermit2Approval) {
       // Permit2 not approved - need to check if user has gas for first-time approval
-      console.log('⚠️ Permit2 not approved for this token. Checking options...');
+      logInfo('⚠️ Permit2 not approved for this token. Checking options...');
 
       // Check user's BNB balance
       const bnbBalance = await params.provider.getBalance(payerAddress);
@@ -1344,8 +1373,8 @@ export async function payInvoiceGasless(params: {
       }
 
       // User has gas - proceed with bundle flow
-      console.log('🔄 Using Permit2 bundle flow (approve + pay)...');
-      console.log('   User BNB balance:', ethers.formatEther(bnbBalance));
+      logInfo('🔄 Using Permit2 bundle flow (approve + pay)...');
+      logDebug('   User BNB balance:', ethers.formatEther(bnbBalance));
 
       // Create and sign the approval transaction
       const erc20Interface = new ethers.Interface([
@@ -1372,11 +1401,11 @@ export async function payInvoiceGasless(params: {
         type: 2, // EIP-1559
       };
 
-      console.log('Signing approval transaction...');
+      logDebug('Signing approval transaction...');
       let signedApproveTx: string;
       try {
         signedApproveTx = await params.signer.signTransaction(approveTx);
-        console.log('Approval tx signed:', signedApproveTx.slice(0, 66) + '...');
+        logDebug('Approval tx signed:', signedApproveTx.slice(0, 66) + '...');
       } catch (signError: any) {
         // MetaMask and some wallets don't support eth_signTransaction
         // Fall back to asking user to approve manually
@@ -1384,7 +1413,7 @@ export async function payInvoiceGasless(params: {
         console.error('   This is common with MetaMask. Falling back to manual approval...');
 
         // Try to do the approval as a regular transaction
-        console.log('📝 Requesting manual Permit2 approval...');
+        logInfo('📝 Requesting manual Permit2 approval...');
         const erc20 = new ethers.Contract(
           params.tokenAddress,
           ['function approve(address spender, uint256 amount) external returns (bool)'],
@@ -1393,9 +1422,9 @@ export async function payInvoiceGasless(params: {
 
         try {
           const approveTxResponse = await erc20.approve(permit2Address, ethers.MaxUint256);
-          console.log('⏳ Waiting for approval confirmation...');
+          logInfo('⏳ Waiting for approval confirmation...');
           await approveTxResponse.wait();
-          console.log('✅ Permit2 approved! Now proceeding with gasless payment...');
+          logInfo('✅ Permit2 approved! Now proceeding with gasless payment...');
 
           // After approval, use the regular relay flow
           relayRequest = {
@@ -1409,15 +1438,15 @@ export async function payInvoiceGasless(params: {
           };
 
           // Skip to the relay submission below
-          console.log('Submitting gasless payment to relay...');
-          console.log('Scheme:', relayRequest.scheme);
-          console.log('Payment ID:', relayRequest.intent.paymentId);
+          logInfo('Submitting gasless payment to relay...');
+          logInfo('Scheme:', relayRequest.scheme);
+          logInfo('Payment ID:', relayRequest.intent.paymentId);
 
           const relayResponse = await relayPayment(relayRequest);
 
-          console.log('✅ Gasless payment relayed successfully');
-          console.log('Transaction Hash:', relayResponse.txHash);
-          console.log('Payment ID:', relayResponse.paymentId);
+          logInfo('✅ Gasless payment relayed successfully');
+          logInfo('Transaction Hash:', relayResponse.txHash);
+          logInfo('Payment ID:', relayResponse.paymentId);
 
           return {
             txHash: relayResponse.txHash,
@@ -1450,8 +1479,8 @@ export async function payInvoiceGasless(params: {
         maxTimestamp: Math.floor(Date.now() / 1000) + 600, // 10 minutes
       };
 
-      console.log('Submitting Permit2 bundle to relay...');
-      console.log('Bundle request:', {
+      logInfo('Submitting Permit2 bundle to relay...');
+      logDebug('Bundle request:', {
         ...bundleRequest,
         approvalTx: bundleRequest.approvalTx.slice(0, 66) + '...',
         witnessSignature: bundleRequest.witnessSignature.slice(0, 66) + '...',
@@ -1462,10 +1491,10 @@ export async function payInvoiceGasless(params: {
       try {
         bundleResponse = await relayPermit2Bundle(bundleRequest);
 
-        console.log('✅ Permit2 bundle accepted');
-        console.log('Bundle ID:', bundleResponse.bundleId);
-        console.log('Target Block:', bundleResponse.targetBlock);
-        console.log('Payment ID:', bundleResponse.paymentId);
+        logInfo('✅ Permit2 bundle accepted');
+        logInfo('Bundle ID:', bundleResponse.bundleId);
+        logInfo('Target Block:', bundleResponse.targetBlock);
+        logInfo('Payment ID:', bundleResponse.paymentId);
 
         // Note: Bundle may take a few blocks to be included
         // Return bundleId as txHash for now - caller should poll for confirmation
@@ -1480,20 +1509,20 @@ export async function payInvoiceGasless(params: {
         // Check if bundle RPC isn't configured - fall back to manual approval flow
         const errorMessage = error.details?.error || error.message || '';
         if (errorMessage.includes('bundleRpc not configured') || errorMessage.includes('not supported')) {
-          console.log('📝 Bundle RPC not available, falling back to manual approval flow...');
+          logInfo('📝 Bundle RPC not available, falling back to manual approval flow...');
 
           // Broadcast the signed approval transaction directly
-          console.log('⏳ Broadcasting approval transaction...');
+          logInfo('⏳ Broadcasting approval transaction...');
           try {
             const txResponse = await params.provider.broadcastTransaction(signedApproveTx);
-            console.log('📤 Approval tx broadcast:', txResponse.hash);
+            logInfo('📤 Approval tx broadcast:', txResponse.hash);
 
-            console.log('⏳ Waiting for approval confirmation...');
+            logInfo('⏳ Waiting for approval confirmation...');
             const receipt = await txResponse.wait();
-            console.log('✅ Permit2 approved! Tx:', receipt?.hash);
+            logInfo('✅ Permit2 approved! Tx:', receipt?.hash);
 
             // Now proceed with regular gasless relay
-            console.log('🚀 Proceeding with gasless payment via relay...');
+            logInfo('🚀 Proceeding with gasless payment via relay...');
 
             relayRequest = {
               network: networkKey as NetworkKey,
@@ -1507,9 +1536,9 @@ export async function payInvoiceGasless(params: {
 
             const relayResponse = await relayPayment(relayRequest);
 
-            console.log('✅ Gasless payment relayed successfully');
-            console.log('Transaction Hash:', relayResponse.txHash);
-            console.log('Payment ID:', relayResponse.paymentId);
+            logInfo('✅ Gasless payment relayed successfully');
+            logInfo('Transaction Hash:', relayResponse.txHash);
+            logInfo('Payment ID:', relayResponse.paymentId);
 
             return {
               txHash: relayResponse.txHash,
@@ -1526,7 +1555,7 @@ export async function payInvoiceGasless(params: {
       }
     } else {
       // Use regular relay endpoint (Permit2 already approved)
-      console.log('✓ Permit2 already approved, using regular relay...');
+      logInfo('✓ Permit2 already approved, using regular relay...');
 
       relayRequest = {
         network: networkKey as NetworkKey,
@@ -1540,9 +1569,9 @@ export async function payInvoiceGasless(params: {
     }
 
     // ========== COMPREHENSIVE BACKEND DEBUG ==========
-    console.log('\n' + '='.repeat(70));
-    console.log('🔧 BACKEND DEBUG: Values for Permit2.permitWitnessTransferFrom()');
-    console.log('='.repeat(70));
+    logDebug('\n' + '='.repeat(70));
+    logDebug('🔧 BACKEND DEBUG: Values for Permit2.permitWitnessTransferFrom()');
+    logDebug('='.repeat(70));
 
     // Compute the witness struct hash
     const witnessStructHash = ethers.keccak256(
@@ -1578,48 +1607,51 @@ export async function payInvoiceGasless(params: {
     // NOTE: This is just "FlexWitness(...)" - the router appends this to Permit2's stub
     const routerWitnessTypeString = 'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)';
 
-    // The full type string - CRITICAL: uses "bytes32 witness" NOT "FlexWitness witness"
-    const fullTypeString = FULL_PERMIT2_TYPE_STRING;
+    // Permit2 type strings used for hashing (with and without witnessTypeString support)
+    const fullTypeStringWithWitness = PERMIT2_TYPE_STRING_WITH_WITNESS;
+    const fullTypeStringLegacy = FULL_PERMIT2_TYPE_STRING_LEGACY;
 
-    console.log('\n📋 Permit2 Call Parameters:');
-    console.log('   permit.permitted.token:', params.tokenAddress);
-    console.log('   permit.permitted.amount:', apiAmountWei);
-    console.log('   permit.nonce:', nonce);
-    console.log('   permit.deadline:', deadline);
-    console.log('   transferDetails.to:', config.contracts.bnbPayRouter);
-    console.log('   transferDetails.requestedAmount:', apiAmountWei);
-    console.log('   owner:', normalizedPayer);
+    logDebug('\n📋 Permit2 Call Parameters:');
+    logDebug('   permit.permitted.token:', params.tokenAddress);
+    logDebug('   permit.permitted.amount:', apiAmountWei);
+    logDebug('   permit.nonce:', nonce);
+    logDebug('   permit.deadline:', deadline);
+    logDebug('   transferDetails.to:', config.contracts.bnbPayRouter);
+    logDebug('   transferDetails.requestedAmount:', apiAmountWei);
+    logDebug('   owner:', normalizedPayer);
 
-    console.log('\n🔐 Witness Parameters:');
-    console.log('   witness (bytes32 - router EIP-712 digest):', witnessDigest);
-    console.log('   witnessTypeString:', routerWitnessTypeString);
+    logDebug('\n🔐 Witness Parameters:');
+    logDebug('   witness (bytes32 - router EIP-712 digest):', witnessDigest);
+    logDebug('   witnessTypeString:', routerWitnessTypeString);
 
-    console.log('\n📝 FlexWitness Data:');
-    console.log('   schemeId:', normalizedWitness.schemeId);
-    console.log('   intentHash:', normalizedWitness.intentHash);
-    console.log('   payer:', normalizedWitness.payer);
-    console.log('   salt:', normalizedWitness.salt);
-    console.log('   struct hash:', witnessStructHash);
+    logDebug('\n📝 FlexWitness Data:');
+    logDebug('   schemeId:', normalizedWitness.schemeId);
+    logDebug('   intentHash:', normalizedWitness.intentHash);
+    logDebug('   payer:', normalizedWitness.payer);
+    logDebug('   salt:', normalizedWitness.salt);
+    logDebug('   struct hash:', witnessStructHash);
 
-    console.log('\n🔍 Type Hashes:');
-    console.log('   Full type string:', fullTypeString);
-    console.log('   Type hash (PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH):', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH);
-    console.log('   FlexWitness type hash:', FLEX_WITNESS_TYPEHASH);
-    console.log('   TokenPermissions type hash:', TOKEN_PERMISSIONS_TYPEHASH);
+    logDebug('\n🔍 Type Hashes:');
+    logDebug('   Type string used for hash (with witnessTypeString):', fullTypeStringWithWitness);
+    logDebug('   Type hash (with witnessTypeString):', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_WITH_WITNESS);
+    logDebug('   Full type string (legacy):', fullTypeStringLegacy);
+    logDebug('   Type hash (legacy):', PERMIT_WITNESS_TRANSFER_FROM_TYPEHASH_LEGACY);
+    logDebug('   FlexWitness type hash:', FLEX_WITNESS_TYPEHASH);
+    logDebug('   TokenPermissions type hash:', TOKEN_PERMISSIONS_TYPEHASH);
 
-    console.log('\n🔧 Domain Separators:');
-    console.log('   Router domain separator:', routerDomainSeparator);
-    console.log('   Permit2 domain separator:', computePermit2DomainSeparator(config.chainIdNumber, permit2Address));
+    logDebug('\n🔧 Domain Separators:');
+    logDebug('   Router domain separator:', routerDomainSeparator);
+    logDebug('   Permit2 domain separator:', computePermit2DomainSeparator(config.chainIdNumber, permit2Address));
 
-    console.log('\n' + '='.repeat(70));
-    console.log('⚠️  Frontend signs with witnessDigest (bytes32), NOT FlexWitness struct');
-    console.log('='.repeat(70) + '\n');
+    logDebug('\n' + '='.repeat(70));
+    logDebug('⚠️  Frontend signs with witnessDigest (bytes32), NOT FlexWitness struct');
+    logDebug('='.repeat(70) + '\n');
   }
 
-  console.log('Submitting gasless payment to relay...');
-  console.log('Scheme:', relayRequest.scheme);
-  console.log('Payment ID:', relayRequest.intent.paymentId);
-  console.log('Full relay request:', relayRequest);
+  logInfo('Submitting gasless payment to relay...');
+  logInfo('Scheme:', relayRequest.scheme);
+  logInfo('Payment ID:', relayRequest.intent.paymentId);
+  logDebug('Full relay request:', relayRequest);
 
   // Submit to relay
   let relayResponse;
@@ -1632,9 +1664,9 @@ export async function payInvoiceGasless(params: {
     throw error;
   }
 
-  console.log('✅ Gasless payment relayed successfully');
-  console.log('Transaction Hash:', relayResponse.txHash);
-  console.log('Payment ID:', relayResponse.paymentId);
+  logInfo('✅ Gasless payment relayed successfully');
+  logInfo('Transaction Hash:', relayResponse.txHash);
+  logInfo('Payment ID:', relayResponse.paymentId);
 
   return {
     txHash: relayResponse.txHash,
