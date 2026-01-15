@@ -48,6 +48,8 @@ export interface NetworkConfig {
   router: string;
   sessionStore: string;
   permit2: string;
+  permit2WitnessTypeString: string;
+  permit2WitnessMode: 'struct_hash';
 }
 
 export interface NetworksResponse {
@@ -181,6 +183,8 @@ export interface BuildIntentResponse {
       chainId: number;
       verifyingContract: string;
     };
+    permit2WitnessTypeString: string;
+    permit2WitnessMode: 'struct_hash';
   };
   hints: {
     deadlineSecondsDefaulted: boolean;

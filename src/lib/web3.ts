@@ -60,7 +60,7 @@ export const NETWORKS = {
     contracts: {
       paymentRegistry: '0x1B71cBdeA2f36A06B0ed844B5080bf620Ef8052D',
       subscriptionManager: '0x45e1857002F4A91831ada123302ED739B9E7c467',
-      bnbPayRouter: '0xA3d5EAaFCc1378058CE008Be1E9392D4E738083B',
+      bnbPayRouter: '0xd0D6985234544cFEDD87632CAfcf3C22629B6130',
       sessionStore: '0x9BDC430A2d3cc0ec86B266075c6Fb30dD3599983',
       permit2: '0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768', // Permit2 contract on BSC Testnet
     },

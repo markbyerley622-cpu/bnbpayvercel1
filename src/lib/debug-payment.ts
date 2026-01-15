@@ -498,7 +498,8 @@ export function getPermit2WitnessTypeInfo() {
   const typedDataTypeString = ethers.TypedDataEncoder.from(PERMIT2_WITNESS_TYPES).encodeType('PermitWitnessTransferFrom');
 
   // Permit2 hashes a stub + witnessTypeString (from the router)
-  const witnessTypeString = 'FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)';
+  const witnessTypeString =
+    'FlexWitness witness)FlexWitness(bytes32 schemeId,bytes32 intentHash,address payer,bytes32 salt)TokenPermissions(address token,uint256 amount)';
   const permit2TypeHashStub = 'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,';
   const typeStringForHash = `${permit2TypeHashStub}${witnessTypeString}`;
 
