@@ -29,7 +29,7 @@ export function GiftCardPreview({
   const amount = card?.amount || previewAmount || '0';
   const token = card?.token || previewToken || 'BNB';
   const network = card?.network || previewNetwork || 'testnet';
-  const isTestnet = network === 'testnet';
+  const isTestnet = network === 'bnbTestnet';
 
   const statusInfo = card ? formatCardStatus(card.status) : null;
   const expiresDate = card?.expiresAt ? new Date(card.expiresAt) : null;
@@ -102,9 +102,16 @@ export function GiftCardPreview({
       </div>
 
       {/* Message (if card has one) */}
-      {card?.message && !compact && (
-        <div className="relative bg-black/20 rounded-lg p-4 mb-4">
-          <p className="text-gray-300 text-sm italic">"{card.message}"</p>
+      {(card?.message || card?.senderName) && !compact && (
+        <div className="relative bg-black/20 rounded-lg p-4 mb-4 space-y-2">
+          {card?.senderName && (
+            <p className="text-gray-300 text-sm">
+              From <span className="text-bnb-yellow font-semibold">{card.senderName}</span>
+            </p>
+          )}
+          {card?.message && (
+            <p className="text-gray-300 text-sm italic">\"{card.message}\"</p>
+          )}
         </div>
       )}
 

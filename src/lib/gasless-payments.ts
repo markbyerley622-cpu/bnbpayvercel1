@@ -603,7 +603,6 @@ export async function signPermit2WithWitness(params: {
 
   // Determine which domain separator is correct based on on-chain verification
   let digest = digestNoVersion; // Default
-  let useVersionedDomain = false;
 
   try {
     const provider = params.signer.provider;
@@ -618,7 +617,6 @@ export async function signPermit2WithWitness(params: {
       if (onChainDomainSep === permit2DomainSeparatorWithVersion) {
         logDebug('   ✅ Using versioned domain separator (matches on-chain)');
         digest = digestWithVersion;
-        useVersionedDomain = true;
       } else if (onChainDomainSep === permit2DomainSeparator) {
         logDebug('   ✅ Using non-versioned domain separator (matches on-chain)');
         digest = digestNoVersion;

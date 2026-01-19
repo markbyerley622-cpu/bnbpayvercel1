@@ -22,7 +22,6 @@ export const TOKENS: Record<NetworkType, TokenInfo[]> = {
     { symbol: 'USD1', name: 'USD1 (Permit2)', decimals: 6, icon: '/USD1.png' },
     { symbol: 'WUSD', name: 'WUSD (EIP-2612)', decimals: 18, icon: '/wusd.png' },
     { symbol: 'XUSD', name: 'XUSD (EIP-3009)', decimals: 18, icon: '/xusd-removebg-preview.png' },
-    { symbol: 'BUSD', name: 'Test BUSD', decimals: 18, icon: '/busd.png' },
   ],
 };
 

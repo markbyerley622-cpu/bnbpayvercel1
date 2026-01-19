@@ -44,6 +44,7 @@ export const NETWORKS = {
       USD1: '0x60ea31f08d3a73fc3c43d4f8e28ee6edca2b8c0f', // USD1 on Mainnet (placeholder - verify)
       WUSD: '0x0000000000000000000000000000000000000000', // WUSD on Mainnet (TBD)
       XUSD: '0x0000000000000000000000000000000000000000', // XUSD on Mainnet (TBD)
+      BUSD: '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD on Mainnet
     },
   },
   testnet: {
@@ -72,6 +73,7 @@ export const NETWORKS = {
       USD1: '0xE71Ad4C949dF74c229697b3A8414A0833ABd4165', // USD1 contract (6 decimals)
       WUSD: '0x5e5ecf5e2512719DE778b88191062114Aa771BCf', // WUSD EIP-2612 (18 decimals)
       XUSD: '0xBCa3782BC181446a0bdB87356Bde326559a4FAb2', // XUSD EIP-3009 (tx: 0x0537f783475458547f2ae79c7511fcfb9690af990f646e659b145c6262a32c49)
+      BUSD: '', // BUSD not available on testnet
     },
   },
 } as const;

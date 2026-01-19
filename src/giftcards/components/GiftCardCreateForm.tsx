@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { Token, NetworkKey, BNBPayCard } from '../types';
+import type { Token, NetworkKey, BNBPayCard, GiftCardType } from '../types';
 import { giftCardApi, validateAmount, validateAddress, parseAmountInput } from '../services';
 import { getTokensForNetwork, getTokenImagePath } from '../services/tokens';
 import { useToast } from '../../contexts/ToastContext';
@@ -40,7 +40,8 @@ export function GiftCardCreateForm({
 
   // Form state
   const [amount, setAmount] = useState('');
-  const [token, setToken] = useState<Token>('BNB');
+  const [token, setToken] = useState<Token>('USDT');
+  const [cardType, setCardType] = useState<GiftCardType>('direct');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [senderName, setSenderName] = useState('');
   const [message, setMessage] = useState('');
@@ -50,6 +51,7 @@ export function GiftCardCreateForm({
   const [isLoading, setIsLoading] = useState(false);
   const [createdCard, setCreatedCard] = useState<BNBPayCard | null>(null);
   const [redeemUrl, setRedeemUrl] = useState<string | null>(null);
+  const [createdAccessCode, setCreatedAccessCode] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [hoveredToken, setHoveredToken] = useState<Token | null>(null);
 
@@ -58,7 +60,7 @@ export function GiftCardCreateForm({
 
   // Get available tokens for current network
   const networkType = network === 'bnb' ? 'mainnet' : 'testnet';
-  const availableTokens = getTokensForNetwork(networkType);
+  const availableTokens = getTokensForNetwork(networkType).filter((symbol) => symbol !== 'BNB');
 
   const validateForm = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
@@ -69,8 +71,17 @@ export function GiftCardCreateForm({
       newErrors.amount = amountValidation.error || 'Invalid amount';
     }
 
-    // Recipient address validation (optional)
-    if (recipientAddress) {
+    // Recipient address validation (required for direct cards)
+    if (cardType === 'direct') {
+      if (!recipientAddress) {
+        newErrors.recipientAddress = 'Recipient address is required for direct cards';
+      } else {
+        const addressValidation = validateAddress(recipientAddress);
+        if (!addressValidation.valid) {
+          newErrors.recipientAddress = addressValidation.error || 'Invalid address';
+        }
+      }
+    } else if (recipientAddress) {
       const addressValidation = validateAddress(recipientAddress);
       if (!addressValidation.valid) {
         newErrors.recipientAddress = addressValidation.error || 'Invalid address';
@@ -81,10 +92,13 @@ export function GiftCardCreateForm({
     if (!token) {
       newErrors.token = 'Please select a token';
     }
+    if (token === 'BNB') {
+      newErrors.token = 'BNB gift cards require escrow and are not supported yet';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [amount, recipientAddress, token]);
+  }, [amount, recipientAddress, token, cardType]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,16 +126,19 @@ export function GiftCardCreateForm({
       const result = await giftCardApi.createGiftCard({
         amount: parseAmountInput(amount),
         token,
-        recipientAddress: recipientAddress || walletAddress,
+        recipientAddress: recipientAddress || undefined,
         message: message || undefined,
+        senderName: senderName || undefined,
         expiresInDays,
         network,
         merchantAddress: walletAddress,
+        cardType,
       });
 
       if (result.success && result.card && result.redeemUrl) {
         setCreatedCard(result.card);
         setRedeemUrl(result.redeemUrl);
+        setCreatedAccessCode(result.accessCode ?? null);
         showToast('Gift card created successfully!', 'success');
         onCardCreated?.(result.card, result.redeemUrl);
       } else {
@@ -133,17 +150,19 @@ export function GiftCardCreateForm({
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress, amount, token, recipientAddress, message, expiresInDays, network, showToast, onCardCreated]);
+  }, [walletAddress, amount, token, recipientAddress, message, senderName, expiresInDays, network, showToast, onCardCreated, cardType]);
 
   const handleReset = useCallback(() => {
     setAmount('');
     setRecipientAddress('');
+    setCardType('direct');
     setSenderName('');
     setMessage('');
     setExpiresInDays(30);
-    setToken('BNB');
+    setToken('USDT');
     setCreatedCard(null);
     setRedeemUrl(null);
+    setCreatedAccessCode(null);
     setErrors({});
   }, []);
 
@@ -196,17 +215,27 @@ export function GiftCardCreateForm({
               Copy
             </button>
           </div>
+          {cardType === 'open' && (
+            <p className="text-xs text-gray-400">
+              This link includes the claim key. Share it securely.
+            </p>
+          )}
         </div>
 
-        {/* Access Code Display */}
-        <div className="bg-bnb-gray/50 rounded-xl p-4 border border-bnb-yellow/20">
-          <div className="text-center">
-            <p className="text-sm text-gray-400 mb-2">Access Code</p>
-            <p className="text-2xl font-mono font-bold text-bnb-yellow tracking-wider">
-              {createdCard.accessCode}
-            </p>
+        {/* Access Code Display (direct cards only) */}
+        {createdAccessCode && (
+          <div className="bg-bnb-gray/50 rounded-xl p-4 border border-bnb-yellow/20">
+            <div className="text-center">
+              <p className="text-sm text-gray-400 mb-2">Access Code</p>
+              <p className="text-2xl font-mono font-bold text-bnb-yellow tracking-wider">
+                {createdAccessCode}
+              </p>
+              <p className="mt-2 text-xs text-gray-400">
+                Share this code with the recipient if you do not include it in the link.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Create Another Button */}
         <button
@@ -232,17 +261,55 @@ export function GiftCardCreateForm({
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Card Type */}
+          <div className="form-group">
+            <label className="block mb-2 text-gray-300 font-semibold text-sm">Gift Card Type</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setCardType('direct')}
+                className={`px-4 py-3 rounded-xl border text-sm font-semibold transition-colors ${
+                  cardType === 'direct'
+                    ? 'border-bnb-yellow text-bnb-yellow bg-bnb-yellow/10'
+                    : 'border-gray-700 text-gray-300 hover:border-bnb-yellow/60'
+                }`}
+              >
+                Direct (Recipient Locked)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCardType('open');
+                  setRecipientAddress('');
+                }}
+                className={`px-4 py-3 rounded-xl border text-sm font-semibold transition-colors ${
+                  cardType === 'open'
+                    ? 'border-bnb-yellow text-bnb-yellow bg-bnb-yellow/10'
+                    : 'border-gray-700 text-gray-300 hover:border-bnb-yellow/60'
+                }`}
+              >
+                Open (Claimable Link)
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-400">
+              {cardType === 'direct'
+                ? 'Only the specified wallet can redeem this card.'
+                : 'Anyone with the link can claim once, then redeem to their wallet.'}
+            </p>
+          </div>
+
           {/* Recipient Address */}
           <div className="form-group">
             <label className="block mb-2 text-gray-300 font-semibold text-sm">
-              Recipient Wallet Address <span className="text-gray-500">(optional)</span>
+              Recipient Wallet Address {cardType === 'direct' ? <span className="text-red-400">*</span> : <span className="text-gray-500">(optional)</span>}
             </label>
             <input
               type="text"
               name="receiverAddress"
               value={recipientAddress}
               onChange={(e) => setRecipientAddress(e.target.value)}
-              placeholder="0x... (leave empty for open gift card)"
+              placeholder={cardType === 'direct' ? '0x... recipient wallet' : '0x... (leave empty for open gift card)'}
+              disabled={cardType === 'open'}
               className={`w-full px-4 py-3 bg-bnb-gray border-2 text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-bnb-yellow transition-colors font-mono text-sm ${
                 errors.recipientAddress ? 'border-red-500' : 'border-bnb-gray'
               }`}
@@ -250,7 +317,11 @@ export function GiftCardCreateForm({
             {errors.recipientAddress ? (
               <p className="mt-2 text-xs text-red-400">{errors.recipientAddress}</p>
             ) : (
-              <p className="mt-2 text-xs text-gray-400">Leave empty to allow anyone with the link to redeem</p>
+              <p className="mt-2 text-xs text-gray-400">
+                {cardType === 'direct'
+                  ? 'Recipient wallet is required for direct cards.'
+                  : 'Leave empty to allow anyone with the link to claim.'}
+              </p>
             )}
           </div>
 
@@ -346,16 +417,6 @@ export function GiftCardCreateForm({
                       {info.description}
                     </span>
 
-                    {/* Native Badge for BNB */}
-                    {t === 'BNB' && (
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-                        <span className={`text-[8px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-semibold ${
-                          isSelected ? 'bg-bnb-yellow text-bnb-dark' : 'bg-bnb-gray text-gray-400'
-                        }`}>
-                          NATIVE
-                        </span>
-                      </div>
-                    )}
                   </button>
                 );
               })}
@@ -452,8 +513,11 @@ export function GiftCardCreateForm({
           {/* Info Box */}
           <div className="mt-4 p-4 bg-bnb-yellow/10 border border-bnb-yellow/20 rounded-xl text-sm">
             <p className="text-gray-300">
-              <strong className="text-bnb-yellow">Permit2 Gift Card:</strong> Creates a spendable session worth{' '}
-              <strong className="text-bnb-yellow">{amount || '0'} {token}</strong>.
+              <strong className="text-bnb-yellow">
+                {cardType === 'open' ? 'Open Gift Card' : 'Direct Gift Card'}:
+              </strong>{' '}
+              Sends <strong className="text-bnb-yellow">{amount || '0'} {token}</strong>{' '}
+              {cardType === 'open' ? 'to the first claimant' : 'to the specified wallet'}.
             </p>
           </div>
         </form>
@@ -543,9 +607,11 @@ export function GiftCardCreateForm({
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmCreate}
         title="Create Gift Card"
-        message={`You are about to create a gift card for ${amount} ${token}. This will be redeemable ${
-          recipientAddress ? `by ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}` : 'by anyone with the link'
-        }.`}
+        message={`You are about to create a ${cardType === 'open' ? 'claimable' : 'direct'} gift card for ${amount} ${token}. ${
+          cardType === 'direct'
+            ? `Only ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)} can redeem it.`
+            : 'Anyone with the link can claim once and redeem.'
+        }`}
         confirmLabel="Create Gift Card"
         confirmColor="bg-bnb-yellow text-bnb-dark"
       />

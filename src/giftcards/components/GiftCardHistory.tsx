@@ -6,7 +6,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BNBPayCard, NetworkKey } from '../types';
 import { giftCardApi, formatCardAmount, formatCardStatus, isCardValid } from '../services/giftcard-api';
-import { getAllCards, getCardsByMerchant, generateRedemptionLink } from '../services/card-storage';
 import { getTokenImagePath } from '../services/tokens';
 import { useToast } from '../../contexts/ToastContext';
 import { GiftCardPreview } from './GiftCardPreview';
@@ -37,22 +36,14 @@ export function GiftCardHistory({
   const loadCards = useCallback(async () => {
     setIsLoading(true);
     try {
-      let loadedCards: BNBPayCard[];
-
+      let loadedCards: BNBPayCard[] = [];
       if (walletAddress) {
-        // Load cards created by this wallet
-        loadedCards = getCardsByMerchant(walletAddress);
+        loadedCards = await giftCardApi.getGiftCardsByMerchant(walletAddress, network);
       } else {
-        // Load all cards (for demo)
-        loadedCards = getAllCards();
+        loadedCards = await giftCardApi.getAllGiftCards();
       }
-
-      // Filter by network
-      loadedCards = loadedCards.filter(card => card.network === network);
-
-      // Sort by created date (newest first)
+      loadedCards = loadedCards.filter((card) => card.network === network);
       loadedCards.sort((a, b) => b.createdAt - a.createdAt);
-
       setCards(loadedCards);
     } catch (error) {
       showToast('Failed to load gift cards', 'error');
@@ -72,7 +63,7 @@ export function GiftCardHistory({
     if (filter === 'redeemed') return card.status === 'redeemed';
     if (filter === 'expired') {
       return card.status === 'expired' ||
-        (card.expiresAt && card.expiresAt < Date.now() && card.status === 'active');
+        (card.expiresAt && card.expiresAt < Date.now() && (card.status === 'active' || card.status === 'claimed'));
     }
     return true;
   });
@@ -84,7 +75,7 @@ export function GiftCardHistory({
     redeemed: cards.filter(c => c.status === 'redeemed').length,
     expired: cards.filter(c =>
       c.status === 'expired' ||
-      (c.expiresAt && c.expiresAt < Date.now() && c.status === 'active')
+      (c.expiresAt && c.expiresAt < Date.now() && (c.status === 'active' || c.status === 'claimed'))
     ).length,
   };
 
@@ -107,9 +98,13 @@ export function GiftCardHistory({
 
   // Handle copy link
   const handleCopyLink = useCallback((card: BNBPayCard) => {
-    const url = generateRedemptionLink(card);
+    const url = `${window.location.origin}/giftcard/redeem?cardId=${encodeURIComponent(card.cardId)}`;
     navigator.clipboard.writeText(url);
-    showToast('Redemption link copied!', 'success');
+    if (card.cardType === 'open') {
+      showToast('Base link copied. Open cards also require the redeem key shown at creation.', 'warning');
+    } else {
+      showToast('Redemption link copied!', 'success');
+    }
   }, [showToast]);
 
   // Empty state
@@ -219,6 +214,8 @@ export function GiftCardHistory({
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                     card.status === 'active' && isCardValid(card)
                       ? 'bg-green-500/20 text-green-400'
+                      : card.status === 'claimed'
+                      ? 'bg-yellow-500/20 text-yellow-400'
                       : card.status === 'redeemed'
                       ? 'bg-blue-500/20 text-blue-400'
                       : 'bg-gray-500/20 text-gray-400'
@@ -230,8 +227,8 @@ export function GiftCardHistory({
                 {/* Card Details */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-500">Access Code</p>
-                    <p className="text-white font-mono text-xs">{card.accessCode}</p>
+                    <p className="text-gray-500">Type</p>
+                    <p className="text-white text-xs">{card.cardType === 'open' ? 'Open' : 'Direct'}</p>
                   </div>
                   <div>
                     <p className="text-gray-500">Expires</p>
@@ -324,10 +321,15 @@ export function GiftCardHistory({
               <div className="mt-6 space-y-4">
                 <div className="bg-white rounded-xl p-4 text-center">
                   <QRCodeDisplay
-                    value={generateRedemptionLink(selectedCard)}
+                    value={`${window.location.origin}/giftcard/redeem?cardId=${encodeURIComponent(selectedCard.cardId)}`}
                     size={180}
                   />
                   <p className="text-sm text-gray-500 mt-2">Scan to redeem</p>
+                  {selectedCard.cardType === 'open' && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Open cards also require the redeem key shown at creation.
+                    </p>
+                  )}
                 </div>
 
                 <button

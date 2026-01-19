@@ -10,7 +10,8 @@ export type NetworkKey = 'bnb' | 'bnbTestnet';
 export type Token = 'BNB' | 'USDT' | 'USDC' | 'USD1' | 'WUSD' | 'XUSD' | 'BUSD';
 
 // Card status
-export type CardStatus = 'active' | 'redeemed' | 'expired' | 'cancelled';
+export type CardStatus = 'active' | 'claimed' | 'redeemed' | 'expired' | 'cancelled';
+export type GiftCardType = 'direct' | 'open';
 
 // Token info interface
 export interface TokenInfo {
@@ -23,13 +24,21 @@ export interface TokenInfo {
 // BNB Pay Gift Card
 export interface BNBPayCard {
   cardId: string;
-  accessCode: string;
-  signature: string;
+  cardType: GiftCardType;
   amount: string;
   token: Token;
-  merchantAddress: string;
+  creatorAddress: string;
+  payerAddress: string;
+  merchantAddress?: string;
   merchantName?: string;
   recipientAddress?: string;
+  signature?: string;
+  claimSigner?: string;
+  claimedAgent?: string;
+  sessionId?: string;
+  sessionEpoch?: number;
+  sessionSpendNonce?: string;
+  sessionExpiresAt?: number;
   status: CardStatus;
   network: NetworkKey;
   createdAt: number;
@@ -39,25 +48,31 @@ export interface BNBPayCard {
   txHash?: string;
   paymentId?: string;
   message?: string;
-  resourceId: string;
-  referenceId: string;
-  x402FlexHeaders: Record<string, string>;
+  senderName?: string;
+  reference?: string;
+  referenceId?: string;
+  resourceId?: string;
+  intentHash?: string;
+  schemeId?: string;
+  accessCode?: string;
+  x402FlexHeaders?: Record<string, string>;
 }
 
 // Gift card create form data
 export interface GiftCardCreateFormData {
   amount: string;
   token: Token;
-  recipientAddress: string;
+  recipientAddress?: string;
+  cardType: GiftCardType;
   message?: string;
   expiresInDays: number;
   network: NetworkKey;
+  senderName?: string;
 }
 
 // Gift card redeem form data
 export interface GiftCardRedeemFormData {
-  accessCode: string;
-  signature: string;
+  accessCode?: string;
 }
 
 // Payment intent for gift cards
@@ -85,6 +100,7 @@ export interface GiftCardCreateResponse {
   success: boolean;
   card?: BNBPayCard;
   redeemUrl?: string;
+  accessCode?: string;
   error?: string;
 }
 

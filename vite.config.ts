@@ -11,8 +11,8 @@ export default defineConfig({
       // Proxy API requests to avoid CORS issues during development
       // NOTE: Production API has bugs - see SIMPLE_SOLUTION.md for details
       '/api': {
-        target: 'https://api.bnbpay.org',
-        // target: 'http://localhost:4000',
+        // target: 'https://api.bnbpay.org',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         secure: false, // Disable SSL verification in dev (Windows cert revocation issue)

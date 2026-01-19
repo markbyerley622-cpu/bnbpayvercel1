@@ -9,7 +9,6 @@ import type { NetworkType } from '../lib/web3';
 import { getCurrentNetwork, formatAddress } from '../lib/web3';
 // Gift Card imports
 import type { BNBPayCard, NetworkKey } from '../giftcards/types';
-import { getCardsByMerchant, generateRedemptionLink } from '../giftcards/services/card-storage';
 import { formatCardAmount, formatCardStatus, isCardValid, giftCardApi } from '../giftcards/services/giftcard-api';
 import { getTokenImagePath as getGiftCardTokenImage } from '../giftcards/services/tokens';
 
@@ -114,22 +113,22 @@ export function HistoryPage() {
   }, [walletAddress]);
 
   // Load gift cards for this wallet
-  const loadGiftCards = useCallback(() => {
+  const loadGiftCards = useCallback(async () => {
     if (!walletAddress) {
       setGiftCards([]);
       return;
     }
 
     const networkKey: NetworkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
-    let cards = getCardsByMerchant(walletAddress);
-
-    // Filter by current network
-    cards = cards.filter(card => card.network === networkKey);
-
-    // Sort by createdAt (newest first)
-    cards.sort((a, b) => b.createdAt - a.createdAt);
-
-    setGiftCards(cards);
+    try {
+      let cards = await giftCardApi.getGiftCardsByMerchant(walletAddress, networkKey);
+      cards = cards.filter(card => card.network === networkKey);
+      cards.sort((a, b) => b.createdAt - a.createdAt);
+      setGiftCards(cards);
+    } catch (error) {
+      console.error('Failed to load gift cards:', error);
+      setGiftCards([]);
+    }
   }, [walletAddress, network]);
 
   // Also reload when window gains focus (in case invoice was created in another tab)
@@ -461,19 +460,23 @@ export function HistoryPage() {
 
   // Copy gift card link
   const handleCopyGiftCardLink = useCallback((card: BNBPayCard) => {
-    const url = generateRedemptionLink(card);
+    const url = `${window.location.origin}/giftcard/redeem?cardId=${encodeURIComponent(card.cardId)}`;
     navigator.clipboard.writeText(url);
-    toast.success('Redemption link copied!');
+    if (card.cardType === 'open') {
+      toast.warning('Base link copied. Open cards also require the redeem key shown at creation.');
+    } else {
+      toast.success('Redemption link copied!');
+    }
   }, [toast]);
 
   // Gift card stats
   const giftCardStats = {
     total: giftCards.length,
-    active: giftCards.filter(c => c.status === 'active' && isCardValid(c)).length,
+    active: giftCards.filter(c => isCardValid(c)).length,
     redeemed: giftCards.filter(c => c.status === 'redeemed').length,
     expired: giftCards.filter(c =>
       c.status === 'expired' ||
-      (c.expiresAt && c.expiresAt < Date.now() && c.status === 'active')
+      (c.expiresAt && c.expiresAt < Date.now() && (c.status === 'active' || c.status === 'claimed'))
     ).length,
   };
 
@@ -517,6 +520,8 @@ export function HistoryPage() {
                 <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${
                   formatCardStatus(selectedCardForDetails.status).label === 'Active'
                     ? 'bg-green-500/20 text-green-400'
+                    : formatCardStatus(selectedCardForDetails.status).label === 'Claimed'
+                    ? 'bg-yellow-500/20 text-yellow-400'
                     : formatCardStatus(selectedCardForDetails.status).label === 'Redeemed'
                     ? 'bg-blue-500/20 text-blue-400'
                     : 'bg-gray-500/20 text-gray-400'
@@ -531,8 +536,8 @@ export function HistoryPage() {
                   <span className="text-white font-mono text-xs">{selectedCardForDetails.cardId}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Access Code:</span>
-                  <span className="text-white font-mono">{selectedCardForDetails.accessCode}</span>
+                  <span className="text-gray-400">Type:</span>
+                  <span className="text-white">{selectedCardForDetails.cardType === 'open' ? 'Open' : 'Direct'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Created:</span>
@@ -1511,7 +1516,7 @@ export function HistoryPage() {
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search by card ID, access code, or amount..."
+                        placeholder="Search by card ID, type, or amount..."
                         value={giftCardSearchQuery}
                         onChange={(e) => {
                           setGiftCardSearchQuery(e.target.value);
@@ -1546,7 +1551,7 @@ export function HistoryPage() {
                       if (giftCardFilter === 'redeemed' && card.status !== 'redeemed') return false;
                       if (giftCardFilter === 'expired') {
                         const isExpired = card.status === 'expired' ||
-                          (card.expiresAt && card.expiresAt < Date.now() && card.status === 'active');
+                          (card.expiresAt && card.expiresAt < Date.now() && (card.status === 'active' || card.status === 'claimed'));
                         if (!isExpired) return false;
                       }
 
@@ -1555,10 +1560,10 @@ export function HistoryPage() {
                         const query = giftCardSearchQuery.toLowerCase();
                         return (
                           card.cardId.toLowerCase().includes(query) ||
-                          card.accessCode.toLowerCase().includes(query) ||
                           card.amount.includes(query) ||
                           card.token.toLowerCase().includes(query) ||
-                          card.message?.toLowerCase().includes(query)
+                          card.message?.toLowerCase().includes(query) ||
+                          card.cardType.toLowerCase().includes(query)
                         );
                       }
                       return true;
@@ -1642,6 +1647,8 @@ export function HistoryPage() {
                                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                     card.status === 'active' && isCardValid(card)
                                       ? 'bg-green-500/20 text-green-400'
+                                      : card.status === 'claimed'
+                                      ? 'bg-yellow-500/20 text-yellow-400'
                                       : card.status === 'redeemed'
                                       ? 'bg-blue-500/20 text-blue-400'
                                       : card.status === 'cancelled'
@@ -1655,8 +1662,8 @@ export function HistoryPage() {
                                 {/* Card Details */}
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm mb-4">
                                   <div>
-                                    <p className="text-gray-500">Access Code</p>
-                                    <p className="text-white font-mono text-xs">{card.accessCode}</p>
+                                    <p className="text-gray-500">Type</p>
+                                    <p className="text-white text-xs">{card.cardType === 'open' ? 'Open' : 'Direct'}</p>
                                   </div>
                                   <div>
                                     <p className="text-gray-500">Expires</p>

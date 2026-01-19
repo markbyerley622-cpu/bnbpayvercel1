@@ -81,6 +81,9 @@ export function createCard(params: {
 
   const card: BNBPayCard = {
     cardId,
+    cardType: params.recipientAddress ? 'direct' : 'open',
+    creatorAddress: params.merchantAddress,
+    payerAddress: params.merchantAddress,
     accessCode,
     signature,
     amount: params.amount,
@@ -121,10 +124,13 @@ export function saveCard(card: BNBPayCard): void {
   localStorage.setItem(CARDS_STORAGE_KEY, JSON.stringify(cards));
 
   // Save to merchant-specific list
-  const merchantKey = `${CARDS_BY_MERCHANT_PREFIX}${card.merchantAddress.toLowerCase()}`;
-  const merchantCards = JSON.parse(localStorage.getItem(merchantKey) || '[]');
-  merchantCards.push(card);
-  localStorage.setItem(merchantKey, JSON.stringify(merchantCards));
+  const merchantAddress = card.merchantAddress ?? card.creatorAddress ?? card.payerAddress;
+  if (merchantAddress) {
+    const merchantKey = `${CARDS_BY_MERCHANT_PREFIX}${merchantAddress.toLowerCase()}`;
+    const merchantCards = JSON.parse(localStorage.getItem(merchantKey) || '[]');
+    merchantCards.push(card);
+    localStorage.setItem(merchantKey, JSON.stringify(merchantCards));
+  }
 
   // Save individual card for easy lookup
   localStorage.setItem(`bnbpay_giftcard_${card.cardId}`, JSON.stringify(card));
@@ -175,6 +181,7 @@ export function getCardById(cardId: string): BNBPayCard | null {
 export function getCardByCredentials(accessCode: string, signature: string): BNBPayCard | null {
   const cards = getAllCards();
   return cards.find(c =>
+    Boolean(c.accessCode && c.signature) &&
     c.accessCode === accessCode.toUpperCase().replace(/\s/g, '') &&
     c.signature === signature
   ) || null;
@@ -192,6 +199,7 @@ export function validateCardCredentials(accessCode: string, signature: string): 
   const cards = getAllCards();
 
   const card = cards.find(c => {
+    if (!c.accessCode || !c.signature) return false;
     const storedCode = c.accessCode.replace(/-/g, '');
     return storedCode === normalizedCode && c.signature === signature;
   });
@@ -227,6 +235,7 @@ export function validateCardByAccessCode(accessCode: string): {
   const cards = getAllCards();
 
   const card = cards.find(c => {
+    if (!c.accessCode) return false;
     const storedCode = c.accessCode.replace(/-/g, '');
     return storedCode === normalizedCode;
   });
@@ -279,12 +288,15 @@ export function updateCardStatus(
   }
 
   // Update merchant-specific list
-  const merchantKey = `${CARDS_BY_MERCHANT_PREFIX}${card.merchantAddress.toLowerCase()}`;
-  const merchantCards = JSON.parse(localStorage.getItem(merchantKey) || '[]') as BNBPayCard[];
-  const merchantIndex = merchantCards.findIndex(c => c.cardId === cardId);
-  if (merchantIndex >= 0) {
-    merchantCards[merchantIndex] = updatedCard;
-    localStorage.setItem(merchantKey, JSON.stringify(merchantCards));
+  const merchantAddress = card.merchantAddress ?? card.creatorAddress ?? card.payerAddress;
+  if (merchantAddress) {
+    const merchantKey = `${CARDS_BY_MERCHANT_PREFIX}${merchantAddress.toLowerCase()}`;
+    const merchantCards = JSON.parse(localStorage.getItem(merchantKey) || '[]') as BNBPayCard[];
+    const merchantIndex = merchantCards.findIndex(c => c.cardId === cardId);
+    if (merchantIndex >= 0) {
+      merchantCards[merchantIndex] = updatedCard;
+      localStorage.setItem(merchantKey, JSON.stringify(merchantCards));
+    }
   }
 
   return updatedCard;
@@ -313,8 +325,8 @@ export function markCardRedeemed(
 export function generateRedemptionLink(card: BNBPayCard): string {
   const data = {
     id: card.cardId,
-    code: card.accessCode,
-    sig: card.signature,
+    code: card.accessCode ?? '',
+    sig: card.signature ?? '',
     amount: card.amount,
     token: card.token,
     merchant: card.merchantName || 'BNB Pay Card',

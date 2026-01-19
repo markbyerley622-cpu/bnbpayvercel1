@@ -3,1239 +3,1514 @@
   "sourceName": "src/SessionStore.sol",
   "abi": [
     {
+      "type": "constructor",
       "inputs": [
         {
-          "internalType": "address",
           "name": "admin",
-          "type": "address"
+          "type": "address",
+          "internalType": "address"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "constructor"
+      "stateMutability": "nonpayable"
     },
     {
-      "inputs": [],
-      "name": "AccessControlBadConfirmation",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "neededRole",
-          "type": "bytes32"
-        }
-      ],
-      "name": "AccessControlUnauthorizedAccount",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CancelExpired",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CapRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidShortString",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidSignature",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "ReentrancyGuardReentrantCall",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint32",
-          "name": "remainingSeconds",
-          "type": "uint32"
-        }
-      ],
-      "name": "SessionCoolDownActive",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "providedDeadline",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionDeadlineExpired",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionDeadlineRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "schemeId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "SessionDuplicateScheme",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "SessionDuplicateToken",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionEpochMustIncrease",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionExpired",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "providedExpiry",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionExpiresInPast",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionIdRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionNonceMustIncrease",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionNotAuthorized",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionRateLimitExceeded",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionRevokedState",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "schemeId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "SessionSchemeNotAllowed",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionSchemesRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "provided",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "maxAllowed",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionSchemesTooMany",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "expected",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "provided",
-          "type": "bytes32"
-        }
-      ],
-      "name": "SessionScopeMismatch",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionScopeRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "uint256",
-          "name": "expected",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "actual",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionSpendNonceMismatch",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "requested",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "remaining",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionTokenCapExceeded",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionTokenCapsRequired",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "provided",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "maxAllowed",
-          "type": "uint256"
-        }
-      ],
-      "name": "SessionTokenCapsTooMany",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "SessionTokenNotAllowed",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SessionUnknown",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "str",
-          "type": "string"
-        }
-      ],
-      "name": "StringTooLong",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "ZeroAddress",
-      "type": "error"
-    },
-    {
-      "anonymous": false,
-      "inputs": [],
-      "name": "EIP712DomainChanged",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "previousAdminRole",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "newAdminRole",
-          "type": "bytes32"
-        }
-      ],
-      "name": "RoleAdminChanged",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        }
-      ],
-      "name": "RoleGranted",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        }
-      ],
-      "name": "RoleRevoked",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "router",
-          "type": "address"
-        }
-      ],
-      "name": "RouterUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "payer",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "agent",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint32",
-          "name": "expiresAt",
-          "type": "uint32"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint32",
-          "name": "epoch",
-          "type": "uint32"
-        },
-        {
-          "indexed": false,
-          "internalType": "bytes32",
-          "name": "merchantScope",
-          "type": "bytes32"
-        }
-      ],
-      "name": "SessionOpened",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "caller",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint32",
-          "name": "epoch",
-          "type": "uint32"
-        }
-      ],
-      "name": "SessionRevoked",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "agent",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "tokenAmount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "bytes32",
-          "name": "schemeId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "SessionSpent",
-      "type": "event"
-    },
-    {
-      "inputs": [],
+      "type": "function",
       "name": "DEFAULT_ADMIN_ROLE",
+      "inputs": [],
       "outputs": [
         {
-          "internalType": "bytes32",
           "name": "",
-          "type": "bytes32"
+          "type": "bytes32",
+          "internalType": "bytes32"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
+      "stateMutability": "view"
     },
     {
-      "inputs": [],
+      "type": "function",
       "name": "ROUTER_ROLE",
-      "outputs": [
-        {
-          "internalType": "bytes32",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "uint256",
-          "name": "expected",
-          "type": "uint256"
-        }
-      ],
-      "name": "consumeSpendNonce",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "nextNonce",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
-      "name": "eip712Domain",
       "outputs": [
         {
-          "internalType": "bytes1",
-          "name": "fields",
-          "type": "bytes1"
-        },
-        {
-          "internalType": "string",
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "version",
-          "type": "string"
-        },
-        {
-          "internalType": "uint256",
-          "name": "chainId",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "verifyingContract",
-          "type": "address"
-        },
-        {
-          "internalType": "bytes32",
-          "name": "salt",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "extensions",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        }
-      ],
-      "name": "getRoleAdmin",
-      "outputs": [
-        {
-          "internalType": "bytes32",
           "name": "",
-          "type": "bytes32"
+          "type": "bytes32",
+          "internalType": "bytes32"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
+      "stateMutability": "view"
     },
     {
+      "type": "function",
+      "name": "claimSession",
       "inputs": [
         {
-          "internalType": "bytes32",
           "name": "sessionId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "getSession",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "initialized",
-              "type": "bool"
-            },
-            {
-              "internalType": "address",
-              "name": "payer",
-              "type": "address"
-            },
-            {
-              "internalType": "address",
-              "name": "agent",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "merchantScope",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "expiresAt",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "epoch",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "nonce",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "revoked",
-              "type": "bool"
-            },
-            {
-              "components": [
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerMinute",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerDay",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "coolDownSeconds",
-                  "type": "uint32"
-                }
-              ],
-              "internalType": "struct SessionTypes.RateLimit",
-              "name": "rateLimit",
-              "type": "tuple"
-            },
-            {
-              "internalType": "uint32",
-              "name": "minuteWindowStart",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "txCountInMinute",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "dayWindowStart",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "txCountInDay",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "lastSpendAt",
-              "type": "uint32"
-            }
-          ],
-          "internalType": "struct SessionStore.SessionState",
-          "name": "info",
-          "type": "tuple"
+          "type": "bytes32",
+          "internalType": "bytes32"
         },
         {
-          "internalType": "address[]",
-          "name": "tokens",
-          "type": "address[]"
+          "name": "agent",
+          "type": "address",
+          "internalType": "address"
         },
         {
-          "internalType": "bytes32[]",
-          "name": "schemes",
-          "type": "bytes32[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "getSessionSpendNonce",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "getSessionState",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "initialized",
-              "type": "bool"
-            },
-            {
-              "internalType": "address",
-              "name": "payer",
-              "type": "address"
-            },
-            {
-              "internalType": "address",
-              "name": "agent",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "merchantScope",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "expiresAt",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "epoch",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "nonce",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "revoked",
-              "type": "bool"
-            },
-            {
-              "components": [
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerMinute",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerDay",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "coolDownSeconds",
-                  "type": "uint32"
-                }
-              ],
-              "internalType": "struct SessionTypes.RateLimit",
-              "name": "rateLimit",
-              "type": "tuple"
-            },
-            {
-              "internalType": "uint32",
-              "name": "minuteWindowStart",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "txCountInMinute",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "dayWindowStart",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "txCountInDay",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "lastSpendAt",
-              "type": "uint32"
-            }
-          ],
-          "internalType": "struct SessionStore.SessionState",
-          "name": "info",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "grantRole",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "hasRole",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "components": [
-            {
-              "internalType": "bytes32",
-              "name": "sessionId",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "address",
-              "name": "payer",
-              "type": "address"
-            },
-            {
-              "internalType": "address",
-              "name": "agent",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "merchantScope",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "deadline",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "expiresAt",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint32",
-              "name": "epoch",
-              "type": "uint32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "nonce",
-              "type": "uint256"
-            },
-            {
-              "components": [
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerMinute",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "maxTxPerDay",
-                  "type": "uint32"
-                },
-                {
-                  "internalType": "uint32",
-                  "name": "coolDownSeconds",
-                  "type": "uint32"
-                }
-              ],
-              "internalType": "struct SessionTypes.RateLimit",
-              "name": "rateLimit",
-              "type": "tuple"
-            },
-            {
-              "internalType": "bytes32[]",
-              "name": "allowedSchemes",
-              "type": "bytes32[]"
-            },
-            {
-              "components": [
-                {
-                  "internalType": "address",
-                  "name": "token",
-                  "type": "address"
-                },
-                {
-                  "internalType": "uint128",
-                  "name": "cap",
-                  "type": "uint128"
-                },
-                {
-                  "internalType": "uint128",
-                  "name": "dailyCap",
-                  "type": "uint128"
-                }
-              ],
-              "internalType": "struct SessionTypes.TokenCap[]",
-              "name": "tokenCaps",
-              "type": "tuple[]"
-            }
-          ],
-          "internalType": "struct SessionTypes.FlexSessionGrant",
-          "name": "grant",
-          "type": "tuple"
-        },
-        {
-          "internalType": "bytes",
-          "name": "signature",
-          "type": "bytes"
-        }
-      ],
-      "name": "openSession",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "callerConfirmation",
-          "type": "address"
-        }
-      ],
-      "name": "renounceRole",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "role",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "revokeRole",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        }
-      ],
-      "name": "revokeSession",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
-          "name": "sessionId",
-          "type": "bytes32"
-        },
-        {
-          "internalType": "uint256",
           "name": "deadline",
-          "type": "uint256"
+          "type": "uint256",
+          "internalType": "uint256"
         },
         {
-          "internalType": "bytes",
-          "name": "signature",
-          "type": "bytes"
+          "name": "claimSig",
+          "type": "bytes",
+          "internalType": "bytes"
         }
       ],
-      "name": "revokeSessionBySig",
       "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
+      "stateMutability": "nonpayable"
     },
     {
-      "inputs": [],
-      "name": "router",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
+      "type": "function",
+      "name": "consumeSpendNonce",
       "inputs": [
         {
-          "internalType": "address",
-          "name": "newRouter",
-          "type": "address"
-        }
-      ],
-      "name": "setRouter",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "components": [
-            {
-              "internalType": "bytes32",
-              "name": "sessionId",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "address",
-              "name": "agent",
-              "type": "address"
-            },
-            {
-              "internalType": "address",
-              "name": "merchant",
-              "type": "address"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "resourceId",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "address",
-              "name": "token",
-              "type": "address"
-            },
-            {
-              "internalType": "uint256",
-              "name": "tokenAmount",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "schemeId",
-              "type": "bytes32"
-            }
-          ],
-          "internalType": "struct SessionStore.SpendRequest",
-          "name": "request",
-          "type": "tuple"
-        }
-      ],
-      "name": "spendFromSession",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes4",
-          "name": "interfaceId",
-          "type": "bytes4"
-        }
-      ],
-      "name": "supportsInterface",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bytes32",
           "name": "sessionId",
-          "type": "bytes32"
+          "type": "bytes32",
+          "internalType": "bytes32"
         },
         {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
+          "name": "expected",
+          "type": "uint256",
+          "internalType": "uint256"
         }
       ],
-      "name": "tokenBudget",
       "outputs": [
         {
-          "components": [
-            {
-              "internalType": "uint128",
-              "name": "cap",
-              "type": "uint128"
-            },
-            {
-              "internalType": "uint128",
-              "name": "remaining",
-              "type": "uint128"
-            },
-            {
-              "internalType": "uint128",
-              "name": "dailyCap",
-              "type": "uint128"
-            },
-            {
-              "internalType": "uint128",
-              "name": "dailySpent",
-              "type": "uint128"
-            },
-            {
-              "internalType": "uint64",
-              "name": "dailyWindowStart",
-              "type": "uint64"
-            }
-          ],
-          "internalType": "struct SessionStore.TokenBucket",
-          "name": "",
-          "type": "tuple"
+          "name": "nextNonce",
+          "type": "uint256",
+          "internalType": "uint256"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "eip712Domain",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "fields",
+          "type": "bytes1",
+          "internalType": "bytes1"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "salt",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "extensions",
+          "type": "uint256[]",
+          "internalType": "uint256[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getClaimSigner",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "claimSigner",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getRoleAdmin",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getSession",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "info",
+          "type": "tuple",
+          "internalType": "struct SessionStore.SessionState",
+          "components": [
+            {
+              "name": "initialized",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "payer",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "agent",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "merchantScope",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "expiresAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "epoch",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "nonce",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "revoked",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "rateLimit",
+              "type": "tuple",
+              "internalType": "struct SessionTypes.RateLimit",
+              "components": [
+                {
+                  "name": "maxTxPerMinute",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "maxTxPerDay",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "coolDownSeconds",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                }
+              ]
+            },
+            {
+              "name": "minuteWindowStart",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "txCountInMinute",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "dayWindowStart",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "txCountInDay",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "lastSpendAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            }
+          ]
+        },
+        {
+          "name": "tokens",
+          "type": "address[]",
+          "internalType": "address[]"
+        },
+        {
+          "name": "schemes",
+          "type": "bytes32[]",
+          "internalType": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getSessionSpendNonce",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getSessionState",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "info",
+          "type": "tuple",
+          "internalType": "struct SessionStore.SessionState",
+          "components": [
+            {
+              "name": "initialized",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "payer",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "agent",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "merchantScope",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "expiresAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "epoch",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "nonce",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "revoked",
+              "type": "bool",
+              "internalType": "bool"
+            },
+            {
+              "name": "rateLimit",
+              "type": "tuple",
+              "internalType": "struct SessionTypes.RateLimit",
+              "components": [
+                {
+                  "name": "maxTxPerMinute",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "maxTxPerDay",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "coolDownSeconds",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                }
+              ]
+            },
+            {
+              "name": "minuteWindowStart",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "txCountInMinute",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "dayWindowStart",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "txCountInDay",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "lastSpendAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "grantRole",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "hasRole",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "isClaimableSession",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "claimable",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "openClaimableSession",
+      "inputs": [
+        {
+          "name": "grant",
+          "type": "tuple",
+          "internalType": "struct SessionTypes.ClaimableSessionGrant",
+          "components": [
+            {
+              "name": "sessionId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "payer",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "merchantScope",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "deadline",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "expiresAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "epoch",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "nonce",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "claimSigner",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "rateLimit",
+              "type": "tuple",
+              "internalType": "struct SessionTypes.RateLimit",
+              "components": [
+                {
+                  "name": "maxTxPerMinute",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "maxTxPerDay",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "coolDownSeconds",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                }
+              ]
+            },
+            {
+              "name": "allowedSchemes",
+              "type": "bytes32[]",
+              "internalType": "bytes32[]"
+            },
+            {
+              "name": "tokenCaps",
+              "type": "tuple[]",
+              "internalType": "struct SessionTypes.TokenCap[]",
+              "components": [
+                {
+                  "name": "token",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "cap",
+                  "type": "uint128",
+                  "internalType": "uint128"
+                },
+                {
+                  "name": "dailyCap",
+                  "type": "uint128",
+                  "internalType": "uint128"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "signature",
+          "type": "bytes",
+          "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "openSession",
+      "inputs": [
+        {
+          "name": "grant",
+          "type": "tuple",
+          "internalType": "struct SessionTypes.FlexSessionGrant",
+          "components": [
+            {
+              "name": "sessionId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "payer",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "agent",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "merchantScope",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "deadline",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "expiresAt",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "epoch",
+              "type": "uint32",
+              "internalType": "uint32"
+            },
+            {
+              "name": "nonce",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "rateLimit",
+              "type": "tuple",
+              "internalType": "struct SessionTypes.RateLimit",
+              "components": [
+                {
+                  "name": "maxTxPerMinute",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "maxTxPerDay",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                },
+                {
+                  "name": "coolDownSeconds",
+                  "type": "uint32",
+                  "internalType": "uint32"
+                }
+              ]
+            },
+            {
+              "name": "allowedSchemes",
+              "type": "bytes32[]",
+              "internalType": "bytes32[]"
+            },
+            {
+              "name": "tokenCaps",
+              "type": "tuple[]",
+              "internalType": "struct SessionTypes.TokenCap[]",
+              "components": [
+                {
+                  "name": "token",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "cap",
+                  "type": "uint128",
+                  "internalType": "uint128"
+                },
+                {
+                  "name": "dailyCap",
+                  "type": "uint128",
+                  "internalType": "uint128"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "signature",
+          "type": "bytes",
+          "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "renounceRole",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "callerConfirmation",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "revokeRole",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "revokeSession",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "revokeSessionBySig",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "deadline",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "signature",
+          "type": "bytes",
+          "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "router",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "setRouter",
+      "inputs": [
+        {
+          "name": "newRouter",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "spendFromSession",
+      "inputs": [
+        {
+          "name": "request",
+          "type": "tuple",
+          "internalType": "struct SessionStore.SpendRequest",
+          "components": [
+            {
+              "name": "sessionId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "agent",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "merchant",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "resourceId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "token",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "tokenAmount",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "schemeId",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            }
+          ]
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "supportsInterface",
+      "inputs": [
+        {
+          "name": "interfaceId",
+          "type": "bytes4",
+          "internalType": "bytes4"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool",
+          "internalType": "bool"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "tokenBudget",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "token",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "tuple",
+          "internalType": "struct SessionStore.TokenBucket",
+          "components": [
+            {
+              "name": "cap",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "remaining",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailyCap",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailySpent",
+              "type": "uint128",
+              "internalType": "uint128"
+            },
+            {
+              "name": "dailyWindowStart",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ]
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "event",
+      "name": "EIP712DomainChanged",
+      "inputs": [],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RoleAdminChanged",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "previousAdminRole",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "newAdminRole",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RoleGranted",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "account",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RoleRevoked",
+      "inputs": [
+        {
+          "name": "role",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "account",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "sender",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "RouterUpdated",
+      "inputs": [
+        {
+          "name": "router",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SessionClaimableOpened",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "claimSigner",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "epoch",
+          "type": "uint32",
+          "indexed": false,
+          "internalType": "uint32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SessionClaimed",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "agent",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "epoch",
+          "type": "uint32",
+          "indexed": false,
+          "internalType": "uint32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SessionOpened",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "payer",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "agent",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "expiresAt",
+          "type": "uint32",
+          "indexed": false,
+          "internalType": "uint32"
+        },
+        {
+          "name": "epoch",
+          "type": "uint32",
+          "indexed": false,
+          "internalType": "uint32"
+        },
+        {
+          "name": "merchantScope",
+          "type": "bytes32",
+          "indexed": false,
+          "internalType": "bytes32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SessionRevoked",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "caller",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "epoch",
+          "type": "uint32",
+          "indexed": false,
+          "internalType": "uint32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "SessionSpent",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "indexed": true,
+          "internalType": "bytes32"
+        },
+        {
+          "name": "agent",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "token",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "tokenAmount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "schemeId",
+          "type": "bytes32",
+          "indexed": false,
+          "internalType": "bytes32"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "AccessControlBadConfirmation",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "AccessControlUnauthorizedAccount",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "neededRole",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "CancelExpired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "CapRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ClaimExpired",
+      "inputs": [
+        {
+          "name": "deadline",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "ClaimSignerRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidShortString",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "InvalidSignature",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ReentrancyGuardReentrantCall",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionAlreadyClaimed",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionCoolDownActive",
+      "inputs": [
+        {
+          "name": "remainingSeconds",
+          "type": "uint32",
+          "internalType": "uint32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionDeadlineExpired",
+      "inputs": [
+        {
+          "name": "providedDeadline",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionDeadlineRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionDuplicateScheme",
+      "inputs": [
+        {
+          "name": "schemeId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionDuplicateToken",
+      "inputs": [
+        {
+          "name": "token",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionEpochMustIncrease",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionExpired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionExpiresInPast",
+      "inputs": [
+        {
+          "name": "providedExpiry",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionIdRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionNonceMustIncrease",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionNotAuthorized",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionNotClaimable",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionRateLimitExceeded",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionRevokedState",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionSchemeNotAllowed",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "schemeId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionSchemesRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionSchemesTooMany",
+      "inputs": [
+        {
+          "name": "provided",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "maxAllowed",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionScopeMismatch",
+      "inputs": [
+        {
+          "name": "expected",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "provided",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionScopeRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionSpendNonceMismatch",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "expected",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "actual",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionTokenCapExceeded",
+      "inputs": [
+        {
+          "name": "token",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "requested",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "remaining",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionTokenCapsRequired",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "SessionTokenCapsTooMany",
+      "inputs": [
+        {
+          "name": "provided",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "maxAllowed",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionTokenNotAllowed",
+      "inputs": [
+        {
+          "name": "sessionId",
+          "type": "bytes32",
+          "internalType": "bytes32"
+        },
+        {
+          "name": "token",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "SessionUnknown",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "StringTooLong",
+      "inputs": [
+        {
+          "name": "str",
+          "type": "string",
+          "internalType": "string"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "ZeroAddress",
+      "inputs": []
     }
   ]
 }
