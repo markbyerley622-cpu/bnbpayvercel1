@@ -58,7 +58,7 @@ createAppKit({
   // Wallet features - disable email/social, focus on crypto wallets
   // Exclude MetaMask/injected to avoid testnet compatibility issues
   features: {
-    analytics: true, // Enable analytics for debugging
+    analytics: false, // Disable analytics to avoid CORS noise in the console
     email: false,
     socials: false,
     emailShowWallets: false,

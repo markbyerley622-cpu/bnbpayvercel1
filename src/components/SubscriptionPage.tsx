@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import QRCode from 'qrcode';
+import { useAppKit } from '@reown/appkit/react';
+import { useAccount } from 'wagmi';
 import { AgentFlowPanel } from './AgentFlowPanel';
 import { Header } from './Header';
 import { FloatingParticles } from './FloatingParticles';
 import { SubscriptionReceipt } from './SubscriptionReceipt';
 import type { SubscriptionData } from '../lib/types';
 import type { NetworkType } from '../lib/web3';
-import { getCurrentNetwork, formatAddress, connectWallet, payInvoiceThroughRouter } from '../lib/web3';
+import { getCurrentNetwork, formatAddress, payInvoiceThroughRouter, switchToNetwork } from '../lib/web3';
 import { getTokenImagePath, getTokenDisplayName, getTokensForNetwork, type Token, convertFromUSD, convertToUSD, formatAmount } from '../lib/price-utils';
 
 interface SubscriptionPageProps {
@@ -15,6 +17,8 @@ interface SubscriptionPageProps {
 }
 
 export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
+  const { open: openWalletModal } = useAppKit();
+  const { address: connectedAddress } = useAccount();
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
@@ -83,6 +87,10 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
       setNetwork(detectedNetwork);
     });
   }, []);
+
+  useEffect(() => {
+    setWalletAddress(connectedAddress ?? null);
+  }, [connectedAddress]);
 
   useEffect(() => {
     loadSubscription();
@@ -244,13 +252,27 @@ export function SubscriptionPage({ subscriptionId }: SubscriptionPageProps) {
     let currentWallet = walletAddress;
     if (!currentWallet) {
       try {
-        const address = await connectWallet(network);
-        setWalletAddress(address);
-        currentWallet = address;
+        await openWalletModal();
+        return;
       } catch (err) {
-        console.error('Failed to connect wallet:', err);
+        console.error('Failed to open wallet modal:', err);
+        setPaymentError('Failed to open wallet modal. Please try again.');
         return;
       }
+    }
+
+    try {
+      const switched = await switchToNetwork(network);
+      if (!switched) {
+        setPaymentError(`Please switch to ${network === 'mainnet' ? 'BNB Chain Mainnet' : 'BNB Chain Testnet'} in your wallet.`);
+        setPaymentStatus('failed');
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to switch network:', err);
+      setPaymentError(`Please switch to ${network === 'mainnet' ? 'BNB Chain Mainnet' : 'BNB Chain Testnet'} in your wallet.`);
+      setPaymentStatus('failed');
+      return;
     }
 
     setPaymentStatus('processing');

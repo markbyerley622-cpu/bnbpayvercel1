@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { InvoiceData } from '../lib/types';
 import { InvoiceModal } from './InvoiceModal';
-import { isWalletInstalled, type NetworkType } from '../lib/web3';
+import { connectWallet, isWalletInstalled, type NetworkType } from '../lib/web3';
 import { getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
 import { createInvoice, type NetworkKey } from '../lib/bnbpay-api';
 import { ethers } from 'ethers';
@@ -125,7 +125,7 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
     if (!isWalletInstalled()) {
       setError({
         code: ErrorCode.WALLET_NOT_CONNECTED,
-        message: 'Please install a Web3 wallet (OKX, Trust Wallet, etc.) to create invoices.',
+        message: 'Please connect a Web3 wallet (OKX, Trust Wallet, etc.) to create invoices.',
         referenceId: generateReferenceId(),
         showRetry: false,
       });
@@ -139,12 +139,7 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
       const settlementToken = primaryToken;
 
       // Step 1: Get connected wallet address (merchant/invoicer)
-      if (!window.ethereum) {
-        throw new Error('No Web3 wallet available');
-      }
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const merchantAddress = await signer.getAddress();
+      const merchantAddress = await connectWallet(network);
 
       // Step 2: Get all supported tokens for this network (API tokens: BNB, USDT, USDC, USD1)
       const tokenAllowlist = getTokensForNetwork(network);

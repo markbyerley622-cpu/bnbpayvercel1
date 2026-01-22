@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { SubscriptionData } from '../lib/types';
 import { SubscriptionModal } from './SubscriptionModal';
-import { createSubscriptionPlan, isWalletInstalled, type NetworkType } from '../lib/web3';
+import { connectWallet, createSubscriptionPlan, isWalletInstalled, type NetworkType } from '../lib/web3';
 import { convertToUSD, getPaymentOptions, getTokensForNetwork, getTokenImagePath, type Token } from '../lib/price-utils';
 import { ErrorCode, getSafeMessage, mapToErrorCode, logInternalError, generateReferenceId } from '../lib/error-codes';
 import { AlertBanner } from './ErrorUI';
@@ -108,7 +108,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
     if (!isWalletInstalled()) {
       setError({
         code: ErrorCode.WALLET_NOT_CONNECTED,
-        message: 'Please install a Web3 wallet (OKX, Trust Wallet, etc.) to create subscriptions.',
+        message: 'Please connect a Web3 wallet (OKX, Trust Wallet, etc.) to create subscriptions.',
         referenceId: generateReferenceId(),
         showRetry: false,
       });
@@ -119,13 +119,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
 
     try {
       // Get connected wallet address
-      const { ethers } = await import('ethers');
-      if (!window.ethereum) {
-        throw new Error('No Web3 wallet available');
-      }
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const merchantAddress = await signer.getAddress();
+      const merchantAddress = await connectWallet(network);
 
       // Convert token price to USD1 equivalent
       const tokenPrice = parseFloat(formData.price);
@@ -140,6 +134,7 @@ export function SubscriptionCreator({ network, onSubscriptionCreated }: Subscrip
         price: usdValue.toFixed(2),
         interval: formData.interval,
         paymentToken: primaryToken,
+        network,
       });
 
       console.log('Subscription plan created:', { planId, txHash });

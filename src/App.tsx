@@ -10,7 +10,7 @@ import { FloatingParticles } from './components/FloatingParticles';
 import { GiftCardCreateForm, GiftCardRedeemPage, GiftCardHistory } from './giftcards';
 import type { InvoiceData, SubscriptionData } from './lib/types';
 import type { NetworkType } from './lib/web3';
-import { getCurrentNetwork, connectWallet } from './lib/web3';
+import { getCurrentNetwork } from './lib/web3';
 
 // Route types
 type RouteType = 'home' | 'invoice' | 'subscription' | 'giftcard-create' | 'giftcard-redeem' | 'giftcard-history';
@@ -93,6 +93,7 @@ function App() {
 
 // Gift Card Page wrapper component
 function GiftCardPage({ pageType }: { pageType: 'create' | 'redeem' | 'history' }) {
+  const { open: openWalletModal } = useAppKit();
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -106,14 +107,11 @@ function GiftCardPage({ pageType }: { pageType: 'create' | 'redeem' | 'history' 
 
   const handleConnectWallet = useCallback(async () => {
     try {
-      const address = await connectWallet(network);
-      if (address) {
-        setWalletAddress(address);
-      }
+      await openWalletModal();
     } catch (error) {
       console.error('Failed to connect wallet:', error);
     }
-  }, [network]);
+  }, [openWalletModal]);
 
   const networkKey = network === 'mainnet' ? 'bnb' : 'bnbTestnet';
 

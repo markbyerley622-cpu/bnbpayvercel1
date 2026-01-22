@@ -6,7 +6,7 @@
 import { ethers, type TypedDataField } from 'ethers';
 import type { BNBPayCard, Token, GiftCardCreateResponse, GiftCardRedeemResponse, NetworkKey, GiftCardType } from '../types';
 import { buildPaymentIntent, type BuildIntentResponse } from '../../lib/bnbpay-api';
-import { NETWORKS, type NetworkType } from '../../lib/web3';
+import { getProvider, NETWORKS, type NetworkType } from '../../lib/web3';
 import {
   getPermit2Nonce,
   getPermit2Address,
@@ -136,10 +136,10 @@ function hashTokenCaps(caps: { token: string; cap: bigint; dailyCap: bigint }[])
 }
 
 async function getSigner() {
-  if (!window.ethereum) {
+  const provider = await getProvider();
+  if (!provider) {
     throw new Error('No Web3 wallet detected');
   }
-  const provider = new ethers.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const address = await signer.getAddress();
   const network = await provider.getNetwork();

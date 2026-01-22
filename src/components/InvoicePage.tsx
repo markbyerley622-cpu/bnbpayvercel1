@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import QRCode from 'qrcode';
+import { useAppKit } from '@reown/appkit/react';
+import { useAccount } from 'wagmi';
 import type { InvoiceData } from '../lib/types';
 import type { NetworkType } from '../lib/web3';
-import { getCurrentNetwork, formatAddress, connectWallet, NETWORKS, payInvoiceThroughRouter, getProvider, getSigner } from '../lib/web3';
+import { getCurrentNetwork, formatAddress, NETWORKS, payInvoiceThroughRouter, getProvider, getSigner, switchToNetwork } from '../lib/web3';
 import { getTokenImagePath, getTokenDisplayName, getTokensForNetwork, type Token, convertFromUSD, convertToUSD, formatAmount } from '../lib/price-utils';
 import { FloatingParticles } from './FloatingParticles';
 import { AgentFlowPanel } from './AgentFlowPanel';
@@ -23,6 +25,8 @@ interface InvoicePageProps {
 type PaymentStatus = 'pending' | 'processing' | 'paid' | 'failed';
 
 export function InvoicePage({ invoiceId }: InvoicePageProps) {
+  const { open: openWalletModal } = useAppKit();
+  const { address: connectedAddress } = useAccount();
   const [network, setNetwork] = useState<NetworkType>('testnet');
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
@@ -108,6 +112,10 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       setNetwork(detectedNetwork);
     });
   }, []);
+
+  useEffect(() => {
+    setWalletAddress(connectedAddress ?? null);
+  }, [connectedAddress]);
 
   useEffect(() => {
     loadInvoice();
@@ -497,7 +505,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
           return;
         }
 
-        const provider = getProvider();
+        const provider = await getProvider();
         if (!provider) {
           setSupportsPermit(false);
           setSupportsEip3009(false);
@@ -634,13 +642,27 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
     let currentWallet = walletAddress;
     if (!currentWallet) {
       try {
-        const address = await connectWallet(network);
-        setWalletAddress(address);
-        currentWallet = address;
+        await openWalletModal();
+        return;
       } catch (err) {
-        console.error('Failed to connect wallet:', err);
+        console.error('Failed to open wallet modal:', err);
+        setError('Failed to open wallet modal. Please try again.');
         return;
       }
+    }
+
+    try {
+      const switched = await switchToNetwork(network);
+      if (!switched) {
+        setError(`Please switch to ${NETWORKS[network].name} in your wallet.`);
+        setPaymentStatus('failed');
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to switch network:', err);
+      setError(`Please switch to ${NETWORKS[network].name} in your wallet.`);
+      setPaymentStatus('failed');
+      return;
     }
 
     // Check if payment is restricted to a specific wallet
@@ -704,7 +726,7 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
 
         // Get signer and provider
         const signer = await getSigner();
-        const provider = getProvider();
+        const provider = await getProvider();
 
         if (!provider) {
           throw new Error('Provider not available');
@@ -1695,11 +1717,10 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
                   <button
                     onClick={async () => {
                       try {
-                        const address = await connectWallet(network);
-                        setWalletAddress(address);
+                        await openWalletModal();
                       } catch (err) {
-                        console.error('Failed to connect wallet:', err);
-                        setError('Failed to connect wallet. Please try again.');
+                        console.error('Failed to open wallet modal:', err);
+                        setError('Failed to open wallet modal. Please try again.');
                       }
                     }}
                     className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-bnb-yellow to-yellow-500 hover:from-yellow-500 hover:to-bnb-yellow text-bnb-dark font-bold text-lg py-5 px-6 rounded-xl transition-all hover:scale-[1.02] shadow-lg"

@@ -47,11 +47,16 @@ export function WalletConnectButton({
 
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const wasConnectedRef = useRef(isConnected);
+
+  const targetChainId = network === 'mainnet' ? bsc.id : bscTestnet.id;
+
+  const balanceChainId = chainId === bsc.id || chainId === bscTestnet.id ? chainId : targetChainId;
 
   // Get balance if requested
   const { data: balance } = useBalance({
     address: address,
-    chainId: network === 'mainnet' ? bsc.id : bscTestnet.id,
+    chainId: balanceChainId,
   });
 
   // Determine the actual network based on wallet's chainId
@@ -61,9 +66,8 @@ export function WalletConnectButton({
   // Check if on wrong network:
   // - Must be connected
   // - Wallet chainId must be defined
-  // - Wallet must be on a supported chain (56 or 97)
-  // Only show "wrong network" if connected to an unsupported chain
-  const isWrongNetwork = isConnected && chainId !== undefined && chainId !== bsc.id && chainId !== bscTestnet.id;
+  // - Wallet chain must match the app target chain
+  const needsNetworkSwitch = isConnected && chainId !== undefined && chainId !== targetChainId;
 
   // For display purposes, use wallet's actual network if available
   const effectiveNetwork = walletNetworkType || network;
@@ -74,6 +78,14 @@ export function WalletConnectButton({
       onConnect?.(address);
     }
   }, [isConnected, address, onConnect]);
+
+  // Notify parent when disconnected (including external disconnects)
+  useEffect(() => {
+    if (wasConnectedRef.current && !isConnected) {
+      onDisconnectCallback?.();
+    }
+    wasConnectedRef.current = isConnected;
+  }, [isConnected, onDisconnectCallback]);
 
   // Sync app network state when wallet chain changes
   // This allows the app to follow the wallet's network instead of fighting it
@@ -119,19 +131,15 @@ export function WalletConnectButton({
     // Disconnect wallet
     disconnect();
 
-    // Notify parent
-    onDisconnectCallback?.();
-
     // Show toast
     toast.info('Wallet disconnected');
-  }, [disconnect, onDisconnectCallback, toast]);
+  }, [disconnect, toast]);
 
   // Handle network switch - default to testnet when on unsupported chain
   const handleSwitchNetwork = useCallback(async () => {
     try {
-      // Switch to testnet by default when on unsupported chain
-      await switchChain({ chainId: bscTestnet.id });
-      toast.success('Switched to BNB Testnet');
+      await switchChain({ chainId: targetChainId });
+      toast.success(`Switched to BNB ${network === 'mainnet' ? 'Mainnet' : 'Testnet'}`);
     } catch (error: any) {
       console.error('Network switch error:', error);
       if (error?.code === 4001) {
@@ -140,7 +148,7 @@ export function WalletConnectButton({
         toast.error('Failed to switch network. Please try manually.');
       }
     }
-  }, [switchChain, toast]);
+  }, [switchChain, targetChainId, network, toast]);
 
   // Copy address to clipboard
   const copyAddress = useCallback(() => {
@@ -177,8 +185,9 @@ export function WalletConnectButton({
   };
 
   // Wrong network warning button - only shows when on unsupported chain
-  if (isConnected && isWrongNetwork) {
+  if (isConnected && needsNetworkSwitch) {
     const currentNetworkName = getNetworkName(chainId);
+    const targetNetworkName = network === 'mainnet' ? 'BNB Mainnet' : 'BNB Testnet';
 
     return (
       <button
@@ -191,13 +200,13 @@ export function WalletConnectButton({
           ${isSwitching ? 'opacity-50 cursor-wait' : 'cursor-pointer'}
           ${className}
         `}
-        title={`Switch from ${currentNetworkName} to BNB Chain`}
+        title={`Switch from ${currentNetworkName} to ${targetNetworkName}`}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <span className="text-sm font-semibold">
-          {isSwitching ? 'Switching...' : 'Switch to BNB Chain'}
+          {isSwitching ? 'Switching...' : `Switch to ${targetNetworkName}`}
         </span>
       </button>
     );

@@ -10,7 +10,7 @@
  */
 
 import { useState } from 'react';
-import { WalletConnect } from './WalletConnect';
+import { WalletConnectButton } from './WalletConnection';
 import type { NetworkType } from '../lib/web3';
 
 interface CustomerHeaderProps {
@@ -38,10 +38,10 @@ export function CustomerHeader({
   allowNetworkChange: _allowNetworkChange = true,
 }: CustomerHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const allowNetworkChange = _allowNetworkChange;
   // Suppress unused variable warnings
   void _walletAddress;
   void _onOpenReceiptHistory;
-  void _allowNetworkChange;
 
   return (
     <header className="bg-bnb-dark/80 backdrop-blur-md border-b border-bnb-yellow/10 py-4 px-4 md:px-6 sticky top-0 z-[200] animate-fade-in">
@@ -72,10 +72,11 @@ export function CustomerHeader({
             {/* Desktop: Full controls */}
             <div className="hidden md:flex items-center space-x-4">
               {/* Wallet Connect */}
-              <WalletConnect
+              <WalletConnectButton
                 network={network}
-                onWalletChanged={onWalletChanged}
-                onNetworkChanged={onNetworkChange}
+                onConnect={onWalletChanged || undefined}
+                onDisconnect={() => onWalletChanged?.(null)}
+                onNetworkChange={allowNetworkChange ? onNetworkChange : undefined}
               />
 
               {/* Network indicator - highlights active network */}
@@ -93,10 +94,11 @@ export function CustomerHeader({
 
             {/* Mobile: Compact wallet */}
             <div className="md:hidden">
-              <WalletConnect
+              <WalletConnectButton
                 network={network}
-                onWalletChanged={onWalletChanged}
-                onNetworkChanged={onNetworkChange}
+                onConnect={onWalletChanged || undefined}
+                onDisconnect={() => onWalletChanged?.(null)}
+                onNetworkChange={allowNetworkChange ? onNetworkChange : undefined}
                 compact
               />
             </div>

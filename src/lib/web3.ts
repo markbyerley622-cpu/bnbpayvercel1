@@ -4,6 +4,8 @@
  */
 
 import { ethers } from 'ethers';
+import { getAccount } from '@wagmi/core';
+import { wagmiConfig } from '../components/WalletConnection/wagmiConfig';
 
 // Network type
 export type NetworkType = 'mainnet' | 'testnet';
@@ -129,8 +131,39 @@ export const BNB_PAY_ROUTER_ABI = [
 /**
  * Check if a Web3 wallet is installed (OKX, Trust, MetaMask, etc.)
  */
+type Eip1193Provider = ethers.Eip1193Provider & {
+  on?: (event: string, listener: (...args: any[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: any[]) => void) => void;
+};
+
+async function getEip1193Provider(): Promise<Eip1193Provider | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const account = getAccount(wagmiConfig);
+  if (account.isConnected && account.connector?.getProvider) {
+    try {
+      const provider = await account.connector.getProvider({ chainId: account.chainId });
+      if (provider) {
+        return provider as Eip1193Provider;
+      }
+    } catch (error) {
+      console.warn('Failed to get wagmi provider:', error);
+    }
+  }
+
+  if (window.ethereum) {
+    return window.ethereum as Eip1193Provider;
+  }
+
+  return null;
+}
+
 export function isWalletInstalled(): boolean {
-  return typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
+  if (typeof window === 'undefined') return false;
+  if (window.ethereum) return true;
+  return Boolean(wagmiConfig.connectors?.length);
 }
 
 /**
@@ -143,31 +176,33 @@ export function isMetaMaskInstalled(): boolean {
 /**
  * Get ethers provider
  */
-export function getProvider(): ethers.BrowserProvider | null {
-  if (!isWalletInstalled() || !window.ethereum) {
+export async function getProvider(): Promise<ethers.BrowserProvider | null> {
+  const provider = await getEip1193Provider();
+  if (!provider) {
     return null;
   }
-  return new ethers.BrowserProvider(window.ethereum as ethers.Eip1193Provider);
+  return new ethers.BrowserProvider(provider);
 }
 
 /**
  * Switch to specific network (mainnet or testnet)
  */
-export async function switchToNetwork(network: NetworkType): Promise<boolean> {
-  if (!isWalletInstalled() || !window.ethereum) {
-    throw new Error('No Web3 wallet found. Please install OKX, Trust Wallet, or another compatible wallet.');
+export async function switchToNetwork(network: NetworkType, providerOverride?: Eip1193Provider): Promise<boolean> {
+  const provider = providerOverride ?? await getEip1193Provider();
+  if (!provider) {
+    throw new Error('No Web3 wallet found. Please connect a wallet to continue.');
   }
 
   const config = NETWORKS[network];
 
   try {
     // Skip switch if already on the requested chain to avoid noisy chainChanged events.
-    const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const currentChainId = await provider.request({ method: 'eth_chainId' });
     if (currentChainId === config.chainId) {
       return true;
     }
 
-    await window.ethereum.request({
+    await provider.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: config.chainId }],
     });
@@ -176,7 +211,7 @@ export async function switchToNetwork(network: NetworkType): Promise<boolean> {
     // Chain not added, try to add it
     if (switchError.code === 4902) {
       try {
-        await window.ethereum!.request({
+        await provider.request({
           method: 'wallet_addEthereumChain',
           params: [
             {
@@ -210,12 +245,18 @@ export async function switchToBSCTestnet(): Promise<boolean> {
  * Get current network from wallet
  */
 export async function getCurrentNetwork(): Promise<NetworkType> {
-  if (!isWalletInstalled() || !window.ethereum) {
+  const account = getAccount(wagmiConfig);
+  if (account.chainId) {
+    return account.chainId === 56 ? 'mainnet' : 'testnet';
+  }
+
+  const provider = await getEip1193Provider();
+  if (!provider) {
     return 'testnet'; // Default
   }
 
   try {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const chainId = await provider.request({ method: 'eth_chainId' });
     if (chainId === BSC_MAINNET_CHAIN_ID) {
       return 'mainnet';
     }
@@ -230,17 +271,27 @@ export async function getCurrentNetwork(): Promise<NetworkType> {
  * Connect to Web3 wallet (OKX, Trust, MetaMask, etc.)
  */
 export async function connectWallet(network: NetworkType = 'testnet'): Promise<string> {
-  if (!isWalletInstalled() || !window.ethereum) {
-    throw new Error('No Web3 wallet found. Please install OKX, Trust Wallet, or another compatible wallet.');
+  const provider = await getEip1193Provider();
+  if (!provider) {
+    throw new Error('No Web3 wallet found. Please connect a wallet to continue.');
   }
 
   try {
+    const wagmiAccount = getAccount(wagmiConfig);
+    if (wagmiAccount.isConnected && wagmiAccount.address) {
+      const switched = await switchToNetwork(network, provider);
+      if (!switched) {
+        throw new Error(`Failed to switch to ${NETWORKS[network].name}`);
+      }
+      return wagmiAccount.address;
+    }
+
     // Request account access
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const accounts = await provider.request({ method: 'eth_requestAccounts' });
     const account = accounts[0];
 
     // Switch to requested network
-    const switched = await switchToNetwork(network);
+    const switched = await switchToNetwork(network, provider);
     if (!switched) {
       throw new Error(`Failed to switch to ${NETWORKS[network].name}`);
     }
@@ -256,7 +307,7 @@ export async function connectWallet(network: NetworkType = 'testnet'): Promise<s
  * Get signer from provider
  */
 export async function getSigner(): Promise<ethers.Signer> {
-  const provider = getProvider();
+  const provider = await getProvider();
   if (!provider) {
     throw new Error('Provider not available');
   }
@@ -291,10 +342,12 @@ export async function createSubscriptionPlan(params: {
   price: string; // USD1 amount
   interval: 'monthly' | 'yearly';
   paymentToken: string; // BNB, USDT, BUSD
+  network?: NetworkType;
 }): Promise<{ planId: number; txHash: string }> {
   try {
+    const network = params.network || 'testnet';
     // Connect wallet
-    const account = await connectWallet();
+    const account = await connectWallet(network);
     const signer = await getSigner();
     // Note: network detection available via getCurrentNetwork() if needed
 
@@ -309,12 +362,13 @@ export async function createSubscriptionPlan(params: {
     }
 
     // Get token address - use checksum format
-    let tokenAddress = SUPPORTED_TOKENS[params.paymentToken as keyof typeof SUPPORTED_TOKENS];
+    const tokens = NETWORKS[network].tokens as Record<string, string>;
+    let tokenAddress = tokens[params.paymentToken as keyof typeof tokens];
 
     // If token not in SUPPORTED_TOKENS, it might be a custom token
     if (!tokenAddress) {
       console.warn(`Token ${params.paymentToken} not in SUPPORTED_TOKENS, using USD1 as fallback`);
-      tokenAddress = SUPPORTED_TOKENS.USD1;
+      tokenAddress = tokens.USD1;
     }
 
     // Ensure checksum address
@@ -664,12 +718,18 @@ export async function processInvoicePayment(params: {
  * Get wallet address
  */
 export async function getWalletAddress(): Promise<string | null> {
-  if (!isWalletInstalled() || !window.ethereum) {
+  const account = getAccount(wagmiConfig);
+  if (account.address) {
+    return account.address;
+  }
+
+  const provider = await getEip1193Provider();
+  if (!provider) {
     return null;
   }
 
   try {
-    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    const accounts = await provider.request({ method: 'eth_accounts' });
     return accounts[0] || null;
   } catch (error) {
     console.error('Error getting wallet address:', error);
@@ -694,7 +754,7 @@ export async function getTokenDecimals(tokenAddress: string): Promise<number> {
     return 18; // Native BNB
   }
 
-  const provider = getProvider();
+  const provider = await getProvider();
   if (!provider) {
     return 18; // Default
   }
