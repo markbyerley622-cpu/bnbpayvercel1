@@ -122,6 +122,11 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
       try {
         const inv = await getInvoice(invoiceId);
         setApiInvoice(inv);
+        if (inv.network === 'bnb') {
+          setNetwork('mainnet');
+        } else if (inv.network === 'bnbTestnet') {
+          setNetwork('testnet');
+        }
 
         // Merge API invoice data with local invoice
         // API has the authoritative merchant address and payment details
@@ -287,6 +292,11 @@ export function InvoicePage({ invoiceId }: InvoicePageProps) {
 
         const decodedJson = atob(cleanData);
         const urlData = JSON.parse(decodedJson);
+        if (urlData.n === 'bnb') {
+          setNetwork('mainnet');
+        } else if (urlData.n === 'bnbTestnet') {
+          setNetwork('testnet');
+        }
 
         // Reconstruct invoice from URL data
         // Parse allowed tokens from URL data, ensuring WUSD is always included

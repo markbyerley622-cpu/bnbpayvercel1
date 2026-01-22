@@ -161,6 +161,12 @@ export async function switchToNetwork(network: NetworkType): Promise<boolean> {
   const config = NETWORKS[network];
 
   try {
+    // Skip switch if already on the requested chain to avoid noisy chainChanged events.
+    const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+    if (currentChainId === config.chainId) {
+      return true;
+    }
+
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: config.chainId }],

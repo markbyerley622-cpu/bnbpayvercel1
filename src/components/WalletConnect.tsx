@@ -1,14 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
-import { connectWallet, formatAddress, getWalletAddress, type NetworkType } from '../lib/web3';
+import {
+  connectWallet,
+  formatAddress,
+  getWalletAddress,
+  BSC_MAINNET_CHAIN_ID,
+  BSC_TESTNET_CHAIN_ID,
+  type NetworkType,
+} from '../lib/web3';
 import { useToast } from '../contexts/ToastContext';
 
 interface WalletConnectProps {
   network: NetworkType;
   onWalletChanged?: (address: string | null) => void;
+  onNetworkChanged?: (network: NetworkType) => void;
   compact?: boolean;
 }
 
-export function WalletConnect({ network, onWalletChanged, compact = false }: WalletConnectProps) {
+export function WalletConnect({ network, onWalletChanged, onNetworkChanged, compact = false }: WalletConnectProps) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -20,26 +28,37 @@ export function WalletConnect({ network, onWalletChanged, compact = false }: Wal
 
     // Listen for account changes
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+      const handleAccountsChanged = (accounts: string[]) => {
         const newAddress = accounts[0] || null;
         setWalletAddress(newAddress);
         if (onWalletChanged) {
           onWalletChanged(newAddress);
         }
-      });
+      };
 
-      window.ethereum.on('chainChanged', () => {
-        window.location.reload();
-      });
+      const handleChainChanged = (chainId: string) => {
+        let nextNetwork: NetworkType = network;
+        if (chainId === BSC_MAINNET_CHAIN_ID) {
+          nextNetwork = 'mainnet';
+        } else if (chainId === BSC_TESTNET_CHAIN_ID) {
+          nextNetwork = 'testnet';
+        }
+        onNetworkChanged?.(nextNetwork);
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      return () => {
+        if (window.ethereum && window.ethereum.removeListener) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+          window.ethereum.removeListener('chainChanged', handleChainChanged);
+        }
+      };
     }
 
-    return () => {
-      if (window.ethereum && window.ethereum.removeListener) {
-        window.ethereum.removeListener('accountsChanged', () => {});
-        window.ethereum.removeListener('chainChanged', () => {});
-      }
-    };
-  }, [onWalletChanged]);
+    return undefined;
+  }, [network, onNetworkChanged, onWalletChanged]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

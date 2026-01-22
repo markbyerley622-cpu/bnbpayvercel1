@@ -23,6 +23,12 @@ function isSubscription(item: InvoiceData | SubscriptionData | null): item is Su
 
 // Generate a shareable invoice link with encoded data
 function generateInvoiceLink(invoice: InvoiceData): string {
+  const chainTag = invoice.x402FlexHeaders?.['X-402-Chain'] || '';
+  const networkKey = chainTag.includes('bnb-chain:56')
+    ? 'bnb'
+    : chainTag.includes('bnb-chain:97')
+      ? 'bnbTestnet'
+      : undefined;
   const invoiceDataForUrl = {
     id: invoice.invoiceId,
     m: invoice.merchantAddress || '', // merchant
@@ -33,6 +39,7 @@ function generateInvoiceLink(invoice: InvoiceData): string {
     pw: invoice.payeeWalletAddress || '', // payee wallet
     c: invoice.createdAt || Date.now(), // created at
     al: invoice.allowedTokens || ['BNB', 'USDT', 'USDC', 'USD1', 'WUSD'], // allowed tokens
+    n: networkKey, // network key (bnb | bnbTestnet)
   };
   const encodedData = btoa(safeStringify(invoiceDataForUrl));
   return `${window.location.origin}/invoice/${invoice.invoiceId}?data=${encodeURIComponent(encodedData)}`;

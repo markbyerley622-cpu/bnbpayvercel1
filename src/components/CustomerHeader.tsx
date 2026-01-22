@@ -27,7 +27,7 @@ interface CustomerHeaderProps {
 
 export function CustomerHeader({
   network,
-  onNetworkChange: _onNetworkChange,
+  onNetworkChange,
   onWalletChanged,
   // walletAddress and onOpenReceiptHistory kept for API compatibility
   // but header now uses direct link to /receipt-history.html
@@ -42,7 +42,6 @@ export function CustomerHeader({
   void _walletAddress;
   void _onOpenReceiptHistory;
   void _allowNetworkChange;
-  void _onNetworkChange;
 
   return (
     <header className="bg-bnb-dark/80 backdrop-blur-md border-b border-bnb-yellow/10 py-4 px-4 md:px-6 sticky top-0 z-[200] animate-fade-in">
@@ -73,7 +72,11 @@ export function CustomerHeader({
             {/* Desktop: Full controls */}
             <div className="hidden md:flex items-center space-x-4">
               {/* Wallet Connect */}
-              <WalletConnect network={network} onWalletChanged={onWalletChanged} />
+              <WalletConnect
+                network={network}
+                onWalletChanged={onWalletChanged}
+                onNetworkChanged={onNetworkChange}
+              />
 
               {/* Network indicator - highlights active network */}
               <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
@@ -90,7 +93,12 @@ export function CustomerHeader({
 
             {/* Mobile: Compact wallet */}
             <div className="md:hidden">
-              <WalletConnect network={network} onWalletChanged={onWalletChanged} compact />
+              <WalletConnect
+                network={network}
+                onWalletChanged={onWalletChanged}
+                onNetworkChanged={onNetworkChange}
+                compact
+              />
             </div>
 
             {/* Mobile: Hamburger Menu Button */}

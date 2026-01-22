@@ -271,6 +271,7 @@ export function InvoiceCreator({ network, onInvoiceCreated }: InvoiceCreatorProp
         dd: formData.dueDate || '', // due date
         pw: formData.payeeWalletAddress || '', // payee wallet
         c: Date.now(), // created at
+        n: apiNetwork, // network key (bnb | bnbTestnet)
         al: formData.acceptedTokens.length > 0 ? formData.acceptedTokens : tokenAllowlist, // allowed tokens for payment
         ri: apiInvoice.resourceId || generatedResourceId, // resourceId for payment matching
         ref: reference, // reference string
