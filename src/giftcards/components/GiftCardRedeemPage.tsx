@@ -252,7 +252,7 @@ export function GiftCardRedeemPage({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="card-shadow rounded-2xl p-8 relative overflow-hidden group">
+        <div className="card-shadow rounded-2xl p-8 relative overflow-hidden group min-h-[350px]">
           <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
             <svg className="w-7 h-7 text-bnb-yellow mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
