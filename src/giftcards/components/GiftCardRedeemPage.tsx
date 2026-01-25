@@ -252,7 +252,7 @@ export function GiftCardRedeemPage({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="card-shadow rounded-2xl p-8 relative group">
+        <div className="card-shadow rounded-2xl p-8 relative">
           <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
             <svg className="w-7 h-7 text-bnb-yellow mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
@@ -339,16 +339,16 @@ export function GiftCardRedeemPage({
           )}
 
           {!walletAddress && (
-            <div className="absolute inset-0 bg-bnb-dark/95 backdrop-blur-sm rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none group-hover:pointer-events-auto z-10">
-              <div className="text-center px-8">
-                <img src="/bnbpay-logo.png" alt="BNBPay" className="h-20 w-auto mx-auto mb-6" />
-                <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
-                <p className="text-gray-400 mb-6">Connect your wallet to redeem gift cards</p>
+            <div className="absolute inset-0 bg-bnb-dark/95 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10">
+              <div className="text-center px-4 sm:px-8 py-6">
+                <img src="/bnbpay-logo.png" alt="BNBPay" className="h-16 sm:h-20 w-auto mx-auto mb-4 sm:mb-6" />
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-3">Connect Your Wallet</h3>
+                <p className="text-gray-400 mb-4 sm:mb-6 text-sm sm:text-base">Connect your wallet to redeem gift cards</p>
                 <button
                   onClick={onConnectWallet}
-                  className="inline-flex items-center space-x-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                  className="inline-flex items-center justify-center space-x-2 sm:space-x-3 bg-bnb-yellow hover:bg-yellow-500 text-bnb-dark font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95 sm:hover:scale-105"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   <span>Connect Wallet</span>
